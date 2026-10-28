@@ -268,7 +268,7 @@ The bar follows mpv's own state (observed properties), so a pause from the
 player bar or a media key shows on it too. Double-click toggles fullscreen
 and the wheel seeks (mpv's default mouse bindings).
 
-**Fullscreen** (button, double-click, `F11`): the window goes fullscreen
+**Fullscreen** (button, double-click, `F11` while a video shows): the window goes fullscreen
 showing only the video and its control bar. `Esc` or `F11` leaves it, and
 `Space` pauses while in it. Leaving fullscreen through the window manager
 works too.
@@ -284,6 +284,11 @@ movie or episode continues at the same position; it is fetched once more),
 through the controller like a channel switch (the stream slot is kept, and
 only one stream is ever open). The stream stays there while you zap; close
 the mpv window to bring the next stream back into tuner.
+
+tuner's own mpv settings (`vo=libmpv`, its IPC socket, no OSC) are set
+again after libmpv reads `mpv.conf`, so lines like `vo=gpu-next` there
+don't break the embedded view. If something makes the embedded mpv quit
+(MPRIS Quit, a script), tuner plays in an mpv window from then on.
 
 Without the feature, or if libmpv or OpenGL
 fails to start (the reason goes to stderr), mpv opens its own window as

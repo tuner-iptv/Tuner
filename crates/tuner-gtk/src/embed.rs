@@ -91,6 +91,11 @@ unsafe extern "C" {
     fn mpv_create() -> *mut MpvHandle;
     fn mpv_set_option_string(h: *mut MpvHandle, name: *const c_char, data: *const c_char) -> c_int;
     fn mpv_initialize(h: *mut MpvHandle) -> c_int;
+    fn mpv_set_property_string(
+        h: *mut MpvHandle,
+        name: *const c_char,
+        data: *const c_char,
+    ) -> c_int;
     fn mpv_terminate_destroy(h: *mut MpvHandle);
     fn mpv_command_string(h: *mut MpvHandle, args: *const c_char) -> c_int;
     fn mpv_get_property_string(h: *mut MpvHandle, name: *const c_char) -> *mut c_char;
@@ -243,6 +248,24 @@ pub fn start(
     }
     // SAFETY: valid, not yet initialized handle.
     check(unsafe { mpv_initialize(core.0) }, "starting libmpv")?;
+    // mpv.conf is read during initialize and overrides the options above. A
+    // `vo=` line there would make libmpv open its own window inside this
+    // process (it crashes GTK), and `input-ipc-server=` would move the
+    // socket the players connect to, so set these again. Nothing has been
+    // drawn yet, so changing them now is safe.
+    for (name, value) in [
+        ("vo", "libmpv"),
+        ("idle", "yes"),
+        ("osc", "no"),
+        ("input-ipc-server", &*socket.to_string_lossy()),
+    ] {
+        let (k, v) = (c_string(name)?, c_string(value)?);
+        // SAFETY: valid handle and NUL-terminated strings.
+        check(
+            unsafe { mpv_set_property_string(core.0, k.as_ptr(), v.as_ptr()) },
+            &format!("mpv option {name}={value}"),
+        )?;
+    }
 
     let video = video_pane(&core);
     let detached = video.detached.clone();
@@ -297,10 +320,22 @@ impl Playback for EmbeddedPlayer {
             return self.external.play_from(url, start);
         }
         self.external.shutdown();
-        if self.mpv.is_none() {
-            self.mpv = Some(Mpv::connect(self.socket.clone())?);
+        if let Some(mpv) = &mut self.mpv {
+            match mpv.load(url) {
+                Err(e) if e.is_disconnect() => self.mpv = None,
+                other => return other,
+            }
         }
-        self.mpv.as_mut().expect("just connected").load(url)
+        match Mpv::connect(self.socket.clone()) {
+            Ok(mpv) => self.mpv.insert(mpv).load(url),
+            // Something told libmpv to quit (MPRIS Quit, a script); it cannot
+            // be restarted, so play in mpv's own window from now on.
+            Err(e) => {
+                eprintln!("tuner-gtk: embedded mpv is gone ({e}); using an mpv window");
+                self.detached.store(true, Ordering::Relaxed);
+                self.external.play(url)
+            }
+        }
     }
     fn toggle_pause(&mut self) -> tuner_mpv::Result<()> {
         if self.detached() {
@@ -751,7 +786,8 @@ fn apply_view(c: &Controls) {
     }
 }
 
-/// F11 toggles fullscreen; in fullscreen, Esc leaves it and Space pauses.
+/// F11 toggles fullscreen while the video shows; in fullscreen, Esc leaves
+/// it and Space pauses.
 /// In cinema mode Esc leaves it. A window fullscreen ended by the
 /// compositor also ends mpv's.
 fn window_keys(pane: &gtk::Overlay, core: &Arc<Core>, c: &Rc<Controls>) {
@@ -775,7 +811,8 @@ fn window_keys(pane: &gtk::Overlay, core: &Arc<Core>, c: &Rc<Controls>) {
                 };
                 let full = c.full.get();
                 let command = match key {
-                    gtk::gdk::Key::F11 => "cycle fullscreen",
+                    // Nothing to show fullscreen while no video plays.
+                    gtk::gdk::Key::F11 if full || c.pane.is_visible() => "cycle fullscreen",
                     gtk::gdk::Key::Escape if full => "set fullscreen no",
                     gtk::gdk::Key::space if full => "cycle pause",
                     gtk::gdk::Key::Escape if c.cinema.is_active() => {
@@ -1203,6 +1240,30 @@ fn forward_pointer(area: &gtk::GLArea, core: &Arc<Core>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_quit_embedded_mpv_falls_back_to_mpvs_window() {
+        // An uninitialized handle stands in for a core that quit: nothing
+        // listens on the socket.
+        // SAFETY: plain constructor; `Core`'s drop destroys it.
+        let core = Arc::new(Core(unsafe { mpv_create() }));
+        let detached = Arc::new(AtomicBool::new(false));
+        let mut player = EmbeddedPlayer {
+            core,
+            socket: std::env::temp_dir().join("tuner-no-such-mpv.sock"),
+            mpv: None,
+            // Never starts: the test needs no mpv binary.
+            external: Player::new(MpvOptions {
+                program: "/nonexistent/mpv".into(),
+                extra_args: Vec::new(),
+            }),
+            detached: detached.clone(),
+            detach_next: Arc::default(),
+        };
+        let err = player.play("http://h/live").unwrap_err();
+        assert!(matches!(err, tuner_mpv::Error::Spawn { .. }), "{err}");
+        assert!(detached.load(Ordering::Relaxed));
+    }
 
     #[test]
     fn stream_info_reads_like_mpvs_stats() {

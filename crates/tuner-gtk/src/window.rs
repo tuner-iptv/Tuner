@@ -2877,6 +2877,11 @@ fn detach(s: &S) {
     let (Some(video), Some(channel)) = (&s.w.video, s.now.borrow().clone()) else {
         return;
     };
+    // `play` ignores a click while another play runs; the flag would then
+    // send some later stream to mpv's window instead.
+    if s.busy.get() {
+        return;
+    }
     video.detach_next.store(true, Ordering::Relaxed);
     play(s, channel);
 }
