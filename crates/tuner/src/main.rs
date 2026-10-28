@@ -96,8 +96,17 @@ fn main() -> Result<()> {
         signal_hook::flag::register(signal, terminate.clone())?;
     }
 
+    let (notify, updates) = mpsc::channel();
+    if config.check_updates.unwrap_or(true) {
+        std::thread::spawn(move || {
+            if let Some(notice) = tuner_app::update::check() {
+                let _ = notify.send(notice);
+            }
+        });
+    }
+
     let mut terminal = ratatui::init();
-    let result = run(&mut terminal, &mut app, &config, &terminate);
+    let result = run(&mut terminal, &mut app, &config, &terminate, &updates);
     ratatui::restore();
     // Dropping the app quits mpv and releases the stream slot.
     drop(app);
@@ -181,6 +190,7 @@ fn run(
     app: &mut App,
     config: &Config,
     terminate: &AtomicBool,
+    updates: &Receiver<tuner_app::update::Update>,
 ) -> Result<()> {
     let mut loading: Option<AccountLoad> = None;
     let mut catalog_load: Option<Receiver<CatalogDone>> = None;
@@ -203,6 +213,9 @@ fn run(
                     catalog_load = None;
                 }
             }
+        }
+        if let Ok(notice) = updates.try_recv() {
+            app.update = Some(notice);
         }
         // After SIGHUP the terminal is gone; stop drawing and exit cleanly.
         terminal.draw(|frame| ui::draw(frame, app))?;
@@ -349,6 +362,23 @@ mod tests {
             .iter()
             .map(|cell| cell.symbol())
             .collect()
+    }
+
+    #[test]
+    fn update_notice_shrinks_to_half_the_status_line() {
+        let mut app = App::new(Library::default(), FakePlayer::default(), FakeGate);
+        app.update = Some(tuner_app::update::Update {
+            version: "9.9.9".into(),
+            how: "https://github.com/tuner-iptv/Tuner/releases/latest".into(),
+        });
+        let wide = render(&mut app, 200, 10);
+        assert!(wide.contains("Tuner 9.9.9 is available · https://github.com/"));
+        assert!(wide.contains("x dismiss"));
+        assert!(wide.contains("Loaded 0 channels"));
+        let narrow = render(&mut app, 68, 10);
+        assert!(narrow.contains("Tuner 9.9.9 is available"));
+        assert!(!narrow.contains("github.com"));
+        assert!(narrow.contains("Loaded 0 channels"));
     }
 
     #[test]

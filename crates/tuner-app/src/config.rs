@@ -24,6 +24,10 @@ pub struct Config {
     /// stay the first field: TOML wants plain values before tables.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub theme: Option<String>,
+    /// Look for a newer release on GitHub at startup (at most once a day).
+    /// Unset means yes. See `update`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub check_updates: Option<bool>,
     #[serde(default, rename = "source", skip_serializing_if = "Vec::is_empty")]
     pub sources: Vec<SourceConfig>,
     #[serde(default, skip_serializing_if = "MpvConfig::is_empty")]

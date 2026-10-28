@@ -11,6 +11,7 @@ one; write a new ADR (don't edit an accepted one) when you do.
 | 0004 | [Credentials in config, never on the CLI](0004-credentials.md)    | Accepted |
 | 0005 | [Enforce provider stream limits](0005-stream-limits.md)           | Accepted |
 | 0006 | [GTK4 desktop front-end, mpv still external](0006-gtk4-gui.md)    | Accepted |
+| 0007 | [Update notices, no self-update](0007-update-notices.md)          | Accepted |
 
 ## Template
 

@@ -160,6 +160,9 @@ pub struct App {
     pub mode: Mode,
     pub query: String,
     pub status: String,
+    /// "Newer release available" notice, kept apart so status updates
+    /// never hide it.
+    pub update: Option<tuner_app::update::Update>,
     pub show_details: bool,
     /// Show the full stream URL in the details pane (it embeds the password).
     pub show_url: bool,
@@ -200,6 +203,7 @@ impl App {
             mode: Mode::Normal,
             query: String::new(),
             status,
+            update: None,
             show_details: false,
             show_url: false,
             accounts: Vec::new(),
@@ -523,6 +527,11 @@ impl App {
     fn handle_normal_key(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Char('q') => self.quit = true,
+            KeyCode::Char('x') => {
+                if let Some(update) = self.update.take() {
+                    update.dismiss();
+                }
+            }
             KeyCode::Char('1') => self.switch_section(Section::Live),
             KeyCode::Char('2') => self.switch_section(Section::Movies),
             KeyCode::Char('3') => self.switch_section(Section::Series),
