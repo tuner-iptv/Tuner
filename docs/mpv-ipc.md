@@ -51,12 +51,16 @@ true, `force-window` is left alone, and dropping it sends `stop` (not
 `quit`) so the stream ends but mpv stays. See
 [ADR 0008](decisions/0008-embedded-video.md).
 
-`Mpv::load_from(url, start)` (and `Player::play_from`) loads with
-`["loadfile", url, "replace", -1, "start=<s>"]`, the per-file options of
-mpv 0.38+. Older mpv rejects that; tuner then loads plainly from the start.
-`Mpv::resume_position` reads `time-pos`, only when `duration` is known (not
-for live channels). The GUI uses both to continue a movie in mpv's own
-window.
+`Mpv::load_with(url, options)` (and `Player::play_with`) loads with
+`["loadfile", url, "replace", -1, "start=754.500,aid=2,sid=no,…"]`, the
+per-file options of mpv 0.38+, which apply to that file only. Older mpv
+rejects that; tuner then loads plainly, with defaults from the start.
+`Mpv::handoff` builds those options from the playing stream: `start` (from
+`time-pos`, only when `duration` is known, so not for live channels), `aid`
+and `sid` (`no` when off; mpv reports that as `false`), `volume`, `mute`,
+and `audio-delay` / `sub-delay` when not zero. Track ids carry over because
+the other player opens the same URL. The GUI uses this when a stream moves
+to mpv's own window.
 
 ## Protocol
 

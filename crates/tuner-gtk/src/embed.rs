@@ -313,11 +313,12 @@ impl Playback for EmbeddedPlayer {
         }
         if self.detached() {
             self.core.send("set fullscreen no");
-            // A movie continues where it was; it is fetched once more, as
-            // the new mpv cannot take over this one's connection.
-            let start = self.mpv.as_mut().and_then(Mpv::resume_position);
+            // The stream keeps its tracks, volume and delays, and a movie
+            // continues where it was; it is fetched once more, as the new
+            // mpv cannot take over this one's connection.
+            let handoff = self.mpv.as_mut().map(Mpv::handoff).unwrap_or_default();
             self.mpv = None;
-            return self.external.play_from(url, start);
+            return self.external.play_with(url, &handoff);
         }
         self.external.shutdown();
         if let Some(mpv) = &mut self.mpv {

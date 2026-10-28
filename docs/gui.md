@@ -279,11 +279,17 @@ window, keeping the header and the window size. `Esc` or the button leaves
 it, and it ends by itself when playback stops.
 
 **Open in mpv window** moves the playing stream to a separate mpv window:
-the embedded stream is stopped first, then the same URL replays in mpv (a
-movie or episode continues at the same position; it is fetched once more),
+the embedded stream is stopped first, then the same URL replays in mpv,
 through the controller like a channel switch (the stream slot is kept, and
 only one stream is ever open). The stream stays there while you zap; close
 the mpv window to bring the next stream back into tuner.
+
+The stream keeps what you set in the embedded player: the audio and
+subtitle track (or subtitles off), volume, mute, and any audio or subtitle
+delay. A movie or episode also continues at the same position. These apply
+to that stream only, and need mpv 0.38+ (older mpv plays it with its
+defaults from the start). The stream is fetched once more, so expect a
+short buffering pause.
 
 tuner's own mpv settings (`vo=libmpv`, its IPC socket, no OSC) are set
 again after libmpv reads `mpv.conf`, so lines like `vo=gpu-next` there

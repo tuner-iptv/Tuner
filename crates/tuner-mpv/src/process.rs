@@ -128,34 +128,34 @@ impl Mpv {
     }
 
     pub fn load(&mut self, url: &str) -> Result<()> {
-        self.load_from(url, None)
+        self.load_with(url, &[])
     }
 
-    /// Like [`Mpv::load`], starting `start` seconds in (a movie moved here
-    /// from another player). mpv before 0.38 has no per-file options in
-    /// `loadfile`; it rejects them and the file starts from the beginning.
-    pub fn load_from(&mut self, url: &str, start: Option<f64>) -> Result<()> {
+    /// Like [`Mpv::load`], with per-file options such as `start=754.500` or
+    /// `aid=2` (a stream moved here from another player; see
+    /// [`Mpv::handoff`]). They apply to this file only. mpv before 0.38 has
+    /// no per-file options in `loadfile`; it rejects them and the file plays
+    /// with its defaults from the beginning.
+    pub fn load_with(&mut self, url: &str, options: &[String]) -> Result<()> {
         // A window kept for the previous stream stays while the next one
         // connects only if that one had video; an audio-only one's closes.
         if self.window_forced && self.child.is_some() {
             self.set_force_window(false)?;
         }
         let plain = [json!("loadfile"), json!(url), json!("replace")];
-        let start = start.filter(|s| s.is_finite() && *s > 0.0);
         let mut resuming = false;
-        let reply = match start {
-            Some(start) => {
-                let mut at = plain.to_vec();
-                at.extend([json!(-1), json!(format!("start={start:.3}"))]);
-                match self.command(&at) {
-                    Err(Error::Command(_)) => self.command(&plain)?,
-                    other => {
-                        resuming = true;
-                        other?
-                    }
+        let reply = if options.is_empty() {
+            self.command(&plain)?
+        } else {
+            let mut with = plain.to_vec();
+            with.extend([json!(-1), json!(options.join(","))]);
+            match self.command(&with) {
+                Err(Error::Command(_)) => self.command(&plain)?,
+                other => {
+                    resuming = options.iter().any(|o| o.starts_with("start="));
+                    other?
                 }
             }
-            None => self.command(&plain)?,
         };
         // mpv starts the file only after replying, so everything queued so
         // far is about the previous one.
@@ -168,16 +168,49 @@ impl Mpv {
         Ok(())
     }
 
-    /// Where playback is, in seconds, if mpv knows and the stream can be
-    /// resumed there (a movie or episode; not a live channel).
-    pub fn resume_position(&mut self) -> Option<f64> {
+    /// What the stream playing here should keep in another player, as
+    /// per-file options for [`Mpv::load_with`]: the position (a movie or
+    /// episode; a live channel has no duration), the audio and subtitle
+    /// track, volume, mute, and any audio or subtitle delay. Track ids carry
+    /// over because the other player opens the same stream.
+    pub fn handoff(&mut self) -> Vec<String> {
         let mut get = |name: &str| {
             self.command(&[json!("get_property"), json!(name)])
-                .ok()
-                .and_then(|v| v.as_f64())
+                .unwrap_or(Value::Null)
         };
-        get("duration").filter(|d| d.is_finite() && *d > 0.0)?;
-        get("time-pos").filter(|p| p.is_finite() && *p > 0.0)
+        let (duration, pos) = (get("duration"), get("time-pos"));
+        let (aid, sid) = (get("aid"), get("sid"));
+        let (volume, mute) = (get("volume"), get("mute"));
+        let (audio_delay, sub_delay) = (get("audio-delay"), get("sub-delay"));
+
+        let finite = |v: &Value| v.as_f64().filter(|n| n.is_finite());
+        let mut options = Vec::new();
+        if finite(&duration).is_some_and(|d| d > 0.0)
+            && let Some(pos) = finite(&pos).filter(|p| *p > 0.0)
+        {
+            options.push(format!("start={pos:.3}"));
+        }
+        for (name, track) in [("aid", aid), ("sid", sid)] {
+            match track {
+                Value::Number(id) => options.push(format!("{name}={id}")),
+                // Turned off ("no" in older mpv, false in newer).
+                Value::Bool(false) => options.push(format!("{name}=no")),
+                Value::String(s) if s == "no" => options.push(format!("{name}=no")),
+                _ => {}
+            }
+        }
+        if let Some(v) = finite(&volume) {
+            options.push(format!("volume={v}"));
+        }
+        if let Some(muted) = mute.as_bool() {
+            options.push(format!("mute={}", if muted { "yes" } else { "no" }));
+        }
+        for (name, delay) in [("audio-delay", audio_delay), ("sub-delay", sub_delay)] {
+            if let Some(d) = finite(&delay).filter(|d| *d != 0.0) {
+                options.push(format!("{name}={d}"));
+            }
+        }
+        options
     }
 
     pub fn stop(&mut self) -> Result<()> {
@@ -271,15 +304,15 @@ impl Player {
 
     /// Play `url`, starting (or restarting) mpv if needed.
     pub fn play(&mut self, url: &str) -> Result<()> {
-        self.play_from(url, None)
+        self.play_with(url, &[])
     }
 
-    /// [`Player::play`] starting `start` seconds in; see [`Mpv::load_from`].
-    pub fn play_from(&mut self, url: &str, start: Option<f64>) -> Result<()> {
-        match self.running()?.load_from(url, start) {
+    /// [`Player::play`] with per-file options; see [`Mpv::load_with`].
+    pub fn play_with(&mut self, url: &str, options: &[String]) -> Result<()> {
+        match self.running()?.load_with(url, options) {
             Err(e) if e.is_disconnect() => {
                 self.mpv = None;
-                self.running()?.load_from(url, start)
+                self.running()?.load_with(url, options)
             }
             other => other,
         }
@@ -409,11 +442,16 @@ mod tests {
         seen.iter().filter(|c| c[0] == "loadfile").collect()
     }
 
+    fn options(list: &[&str]) -> Vec<String> {
+        list.iter().map(|o| o.to_string()).collect()
+    }
+
     #[test]
-    fn loads_from_a_position_with_per_file_options() {
+    fn loads_with_per_file_options() {
         let (socket, fake) = fake_mpv(|_| json!({"error": "success", "data": null}));
         let mut mpv = Mpv::connect(socket.clone()).unwrap();
-        mpv.load_from("http://h/movie.mkv", Some(754.5)).unwrap();
+        mpv.load_with("http://h/movie.mkv", &options(&["start=754.500", "aid=2"]))
+            .unwrap();
         drop(mpv);
         let seen = fake.join().unwrap();
         assert_eq!(
@@ -423,7 +461,7 @@ mod tests {
                 "http://h/movie.mkv",
                 "replace",
                 -1,
-                "start=754.500"
+                "start=754.500,aid=2"
             ])]
         );
         let _ = std::fs::remove_file(socket);
@@ -439,7 +477,8 @@ mod tests {
             }
         });
         let mut mpv = Mpv::connect(socket.clone()).unwrap();
-        mpv.load_from("http://h/movie.mkv", Some(60.0)).unwrap();
+        mpv.load_with("http://h/movie.mkv", &options(&["start=60.000"]))
+            .unwrap();
         drop(mpv);
         let seen = fake.join().unwrap();
         let loads = loadfiles(&seen);
@@ -451,15 +490,51 @@ mod tests {
         let _ = std::fs::remove_file(socket);
     }
 
+    /// A fake mpv answering `get_property` from `props`.
+    fn playing(props: Value) -> (PathBuf, thread::JoinHandle<Vec<Value>>) {
+        fake_mpv(
+            move |c| match c[1].as_str().and_then(|name| props.get(name)) {
+                Some(value) => json!({"error": "success", "data": value}),
+                None if c[0] == "get_property" => json!({"error": "property unavailable"}),
+                None => json!({"error": "success", "data": null}),
+            },
+        )
+    }
+
     #[test]
-    fn live_streams_have_no_resume_position() {
-        let (socket, fake) = fake_mpv(|c| match c[1].as_str() {
-            Some("time-pos") => json!({"error": "success", "data": 42.0}),
-            Some("duration") => json!({"error": "property unavailable"}),
-            _ => json!({"error": "success", "data": null}),
-        });
+    fn a_movie_hands_off_position_tracks_and_audio_settings() {
+        let (socket, fake) = playing(json!({
+            "duration": 7200.0, "time-pos": 754.5, "aid": 2, "sid": 3,
+            "volume": 80.0, "mute": false, "audio-delay": 0.0, "sub-delay": -0.5,
+        }));
         let mut mpv = Mpv::connect(socket.clone()).unwrap();
-        assert_eq!(mpv.resume_position(), None);
+        assert_eq!(
+            mpv.handoff(),
+            options(&[
+                "start=754.500",
+                "aid=2",
+                "sid=3",
+                "volume=80",
+                "mute=no",
+                "sub-delay=-0.5"
+            ])
+        );
+        drop(mpv);
+        fake.join().unwrap();
+        let _ = std::fs::remove_file(socket);
+    }
+
+    #[test]
+    fn a_live_channel_hands_off_tracks_but_no_position() {
+        // No duration; subtitles off (false in newer mpv).
+        let (socket, fake) = playing(json!({
+            "time-pos": 42.0, "aid": 1, "sid": false, "volume": 100.0, "mute": true,
+        }));
+        let mut mpv = Mpv::connect(socket.clone()).unwrap();
+        assert_eq!(
+            mpv.handoff(),
+            options(&["aid=1", "sid=no", "volume=100", "mute=yes"])
+        );
         drop(mpv);
         fake.join().unwrap();
         let _ = std::fs::remove_file(socket);
