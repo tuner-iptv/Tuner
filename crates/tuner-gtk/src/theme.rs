@@ -222,6 +222,34 @@ button.destructive-action {{ background: {error}; color: {bg}; border-color: {er
 .player-bar button.circular:hover {{ background: {accent}; color: {bg}; border-color: {accent}; }}
 .statusbar {{ background: {darker_bg}; color: mix({fg}, {bg}, 0.15); padding: 7px 20px; font-size: 0.85em; }}
 .statusbar .now-playing {{ color: {accent}; }}
+.video {{ background: {darker_bg}; }}
+.video-controls {{ background-image: linear-gradient(to top, alpha({darker_bg}, 0.95), alpha({darker_bg}, 0.6) 60%, alpha({darker_bg}, 0)); color: {bright}; padding: 28px 14px 8px; }}
+.video-controls button {{ background: transparent; color: {bright}; border: none; box-shadow: none; outline: none; min-width: 36px; min-height: 36px; padding: 0; border-radius: 999px; transition: background 150ms ease, color 150ms ease; }}
+.video-controls button image {{ -gtk-icon-size: 18px; }}
+.video-controls button:hover {{ background: alpha({fg}, 0.14); }}
+.video-controls button:checked {{ color: {accent}; }}
+.video-controls button.video-play {{ min-width: 40px; min-height: 40px; }}
+.video-controls button.video-play image {{ -gtk-icon-size: 22px; }}
+.video-controls scale {{ padding: 0; }}
+.video-controls scale trough {{ background: alpha({fg}, 0.25); min-height: 4px; border-radius: 999px; }}
+.video-controls scale highlight {{ background: {accent}; border-radius: 999px; }}
+.video-controls scale slider {{ background: {accent}; border: none; box-shadow: none; min-width: 12px; min-height: 12px; margin: -4px; }}
+.video-seek {{ margin: 0 4px 6px; }}
+.video-seek trough {{ transition: min-height 120ms ease; }}
+.video-seek:hover trough {{ min-height: 6px; }}
+.video-seek slider {{ opacity: 0; transition: opacity 120ms ease; }}
+.video-seek:hover slider {{ opacity: 1; }}
+.video-volume {{ min-width: 80px; margin: 0 6px 0 0; }}
+.video-info {{ margin: 12px; padding: 4px 10px; border-radius: 999px; background: alpha({darker_bg}, 0.75); color: {bright}; font-size: 0.85em; font-feature-settings: "tnum"; }}
+.video-time {{ color: {fg}; font-size: 0.9em; font-feature-settings: "tnum"; margin: 0 10px; }}
+.video-tracks popover contents {{ background: {dark_bg}; color: {fg}; border: 1px solid {muted}; border-radius: 10px; padding: 8px; }}
+.video-tracks popover .section-label {{ margin: 2px 10px 0; letter-spacing: 1px; }}
+.video-tracks .track-list {{ background: transparent; }}
+.video-tracks .track-list > row {{ border-radius: 8px; padding: 8px 10px; min-width: 200px; }}
+.video-tracks .track-list > row:hover {{ background: {light_bg}; }}
+.video-tracks .track-list > row.current .track-name {{ color: {accent}; font-weight: 600; }}
+.video-tracks .track-list > row.current image {{ color: {accent}; }}
+.track-detail {{ font-size: 0.85em; }}
 .statusbar .update {{ color: {accent}; }}
 .warning {{ color: {warning}; }}
 .error {{ color: {error}; }}

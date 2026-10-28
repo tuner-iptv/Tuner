@@ -173,7 +173,6 @@ runtime.
 | Stalker portals     | new `tuner-core::stalker` (parsing) + `Source::Stalker` in `tuner-app` |
 | EPG (XMLTV)         | new `tuner-epg` crate: streaming parse (`quick-xml`) into storage; joins on `Channel::tvg_id` |
 | Favorites / history | new `tuner-store` crate (SQLite) |
-| Embedded video      | opt-in `Playback` impl in `tuner-gtk` (libmpv render API), behind a cargo feature; ADR first (see ADR 0006) |
 
 Details and ordering: [docs/roadmap.md](docs/roadmap.md).
 

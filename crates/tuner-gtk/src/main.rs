@@ -1,4 +1,6 @@
 mod accounts;
+#[cfg(feature = "embedded")]
+mod embed;
 mod logos;
 mod theme;
 mod themes;

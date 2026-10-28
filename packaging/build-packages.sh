@@ -17,7 +17,7 @@ if [[ "${1:-}" == --docker ]]; then
         set -euo pipefail
         apt-get update -qq
         apt-get install -y -qq --no-install-recommends \
-            curl ca-certificates build-essential pkg-config libgtk-4-dev >/dev/null
+            curl ca-certificates build-essential pkg-config libgtk-4-dev libmpv-dev >/dev/null
         curl -sSf https://sh.rustup.rs | sh -s -- -y -q --profile minimal >/dev/null
         . "$HOME/.cargo/env"
         CARGO_TARGET_DIR=/tmp/target packaging/build-packages.sh
