@@ -16,6 +16,6 @@ pkgbase = tuner-iptv-bin
 	conflicts = tuner-git
 	options = !debug
 	source = https://github.com/tuner-iptv/Tuner/releases/download/v0.1.0/tuner-v0.1.0-x86_64-linux.tar.gz
-	sha256sums = SKIP
+	sha256sums = 26af9012c9ba41b85ec4687b2dda48280094a98182e8c28d49a63474d3e8b813
 
 pkgname = tuner-iptv-bin

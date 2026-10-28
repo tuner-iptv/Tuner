@@ -16,7 +16,7 @@ provides=('tuner-iptv')
 # The AUR radio player also installs /usr/bin/tuner.
 conflicts=('tuner-iptv' 'tuner-iptv-git' 'tuner' 'tuner-git')
 source=("$url/releases/download/v$pkgver/tuner-v$pkgver-x86_64-linux.tar.gz")
-sha256sums=('SKIP')  # set by bump-bin.sh after the v0.1.0 release
+sha256sums=('26af9012c9ba41b85ec4687b2dda48280094a98182e8c28d49a63474d3e8b813')
 options=('!debug')
 
 package() {
