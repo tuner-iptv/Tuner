@@ -222,6 +222,7 @@ button.destructive-action {{ background: {error}; color: {bg}; border-color: {er
 .player-bar button.circular:hover {{ background: {accent}; color: {bg}; border-color: {accent}; }}
 .statusbar {{ background: {darker_bg}; color: mix({fg}, {bg}, 0.15); padding: 7px 20px; font-size: 0.85em; }}
 .statusbar .now-playing {{ color: {accent}; }}
+.statusbar .update {{ color: {accent}; }}
 .warning {{ color: {warning}; }}
 .error {{ color: {error}; }}
 .dim-label {{ color: mix({fg}, {bg}, 0.15); }}

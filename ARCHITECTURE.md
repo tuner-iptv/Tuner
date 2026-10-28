@@ -101,6 +101,9 @@ Everything a TUI and a future GUI must behave identically on.
   without URLs so credentials never leak
   ([ADR 0004](docs/decisions/0004-credentials.md)). The `Catalog` trait
   (implemented by `Source`) fetches movies, series and episodes lazily.
+- `update.rs`: once-a-day GitHub check for a newer release; returns a
+  notice with the update step for this install, never self-updates
+  ([ADR 0007](docs/decisions/0007-update-notices.md)).
 - `guard.rs`: `StreamGuard` (implements the `StreamGate` trait) enforces the
   stream limit with per-account slot file locks and a provider check.
   See [docs/stream-limits.md](docs/stream-limits.md).

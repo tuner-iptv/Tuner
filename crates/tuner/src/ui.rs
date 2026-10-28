@@ -98,7 +98,25 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     };
     let [status_area, hints_area] =
         Layout::vertical([Constraint::Length(1), Constraint::Length(1)]).areas(status);
+    // At most half the line, so the status stays readable: drop the update
+    // step, then the key hint, when they don't fit.
+    let update = app.update.as_ref().and_then(|u| {
+        let room = usize::from(status_area.width / 2);
+        [
+            format!("{u} · x dismiss "),
+            format!("{} · x dismiss ", u.headline()),
+            format!("{} ", u.headline()),
+        ]
+        .into_iter()
+        .find(|text| text.chars().count() <= room)
+    });
+    let width = update.as_deref().map_or(0, |u| u.chars().count() as u16);
+    let [status_area, update_area] =
+        Layout::horizontal([Constraint::Fill(1), Constraint::Length(width)]).areas(status_area);
     frame.render_widget(Line::from(left).bold(), status_area);
+    if let Some(update) = update {
+        frame.render_widget(Line::from(update).reversed(), update_area);
+    }
     let hints = if matches!(app.mode, Mode::Loading { .. }) {
         "q / Ctrl-C quit"
     } else {
