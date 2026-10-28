@@ -1,0 +1,17 @@
+[package]
+name = "tuner-core"
+description = "Playlist parsing and channel library for tuner. No I/O, no UI."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde_json.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

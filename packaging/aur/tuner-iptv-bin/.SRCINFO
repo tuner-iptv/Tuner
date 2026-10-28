@@ -1,0 +1,21 @@
+pkgbase = tuner-iptv-bin
+	pkgdesc = Lean, Linux-native IPTV player written in Rust (terminal and GTK4), powered by mpv
+	pkgver = 0.1.0
+	pkgrel = 1
+	url = https://github.com/tuner-iptv/Tuner
+	arch = x86_64
+	license = GPL-3.0-or-later
+	depends = mpv
+	depends = gtk4
+	depends = glibc
+	depends = gcc-libs
+	provides = tuner-iptv
+	conflicts = tuner-iptv
+	conflicts = tuner-iptv-git
+	conflicts = tuner
+	conflicts = tuner-git
+	options = !debug
+	source = https://github.com/tuner-iptv/Tuner/releases/download/v0.1.0/tuner-v0.1.0-x86_64-linux.tar.gz
+	sha256sums = SKIP
+
+pkgname = tuner-iptv-bin

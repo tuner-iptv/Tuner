@@ -1,0 +1,69 @@
+[package]
+name = "tuner-gtk"
+description = "Lean, Linux-native IPTV player written in Rust, with a GTK4 interface and mpv playback."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+tuner-core.workspace = true
+tuner-app.workspace = true
+tuner-mpv.workspace = true
+
+anyhow.workspace = true
+clap.workspace = true
+gtk.workspace = true
+signal-hook.workspace = true
+toml.workspace = true
+ureq.workspace = true
+
+[lints]
+workspace = true
+
+# Native packages for Debian/Ubuntu and Fedora. One package,
+# "tuner-iptv", ships both front-ends. Built by packaging/build-packages.sh;
+# see docs/packaging.md.
+[package.metadata.deb]
+name = "tuner-iptv"
+maintainer = "Tuner IPTV"
+copyright = "2026, Tuner IPTV contributors"
+extended-description = """\
+A lean, Linux-native IPTV player written in Rust. Browse M3U playlists and \
+Xtream Codes accounts in a keyboard-first terminal (tuner) or native GTK4 \
+window (tuner-gtk), with playback in mpv. Both interfaces share accounts, \
+settings, and stream-limit checks."""
+section = "video"
+license-file = ["../../LICENSE", "0"]
+priority = "optional"
+depends = "mpv, libgtk-4-1 (>= 4.10), libc6 (>= 2.39)"
+assets = [
+    ["target/release/tuner", "usr/bin/", "755"],
+    ["target/release/tuner-gtk", "usr/bin/", "755"],
+    ["../../packaging/tuner-gtk.desktop", "usr/share/applications/", "644"],
+    ["../../packaging/io.github.tuner_iptv.Tuner.svg", "usr/share/icons/hicolor/scalable/apps/io.github.tuner_iptv.Tuner.svg", "644"],
+    ["../../README.md", "usr/share/doc/tuner-iptv/README.md", "644"],
+    ["../../LICENSE", "usr/share/doc/tuner-iptv/LICENSE", "644"],
+]
+
+[package.metadata.generate-rpm]
+name = "tuner-iptv"
+summary = "Lean, Linux-native IPTV player written in Rust (terminal and GTK4)"
+# Auto-requirements would copy Ubuntu library names (e.g. libjpeg.so.8) from
+# the build host; Fedora names them differently. Declare real deps instead.
+auto-req = "no"
+assets = [
+    { source = "target/release/tuner", dest = "/usr/bin/tuner", mode = "755" },
+    { source = "target/release/tuner-gtk", dest = "/usr/bin/tuner-gtk", mode = "755" },
+    { source = "../../packaging/tuner-gtk.desktop", dest = "/usr/share/applications/tuner-gtk.desktop", mode = "644" },
+    { source = "../../packaging/io.github.tuner_iptv.Tuner.svg", dest = "/usr/share/icons/hicolor/scalable/apps/io.github.tuner_iptv.Tuner.svg", mode = "644" },
+    { source = "../../README.md", dest = "/usr/share/doc/tuner-iptv/README.md", mode = "644", doc = true },
+    { source = "../../LICENSE", dest = "/usr/share/licenses/tuner-iptv/LICENSE", mode = "644", doc = true },
+]
+
+[package.metadata.generate-rpm.requires]
+mpv = "*"
+gtk4 = ">= 4.10"

@@ -1,0 +1,79 @@
+name: Build artifacts
+
+# Static TUI binaries and .deb/.rpm packages. Called by release.yml for
+# tags; also runs on PRs that touch packaging so breakage shows up early.
+# See docs/packaging.md.
+
+on:
+  workflow_call:
+    inputs:
+      build_ref:
+        required: false
+        type: string
+  pull_request:
+    paths:
+      - "packaging/**"
+      - "crates/tuner-gtk/Cargo.toml"
+      - ".github/workflows/build-artifacts.yml"
+      - ".github/workflows/release.yml"
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  tui-static:
+    name: TUI static (${{ matrix.target }})
+    runs-on: ubuntu-24.04
+    # The cargo-zigbuild image (Rust + Zig), pinned by digest: the build
+    # verified locally is exactly the one CI runs.
+    container: ghcr.io/rust-cross/cargo-zigbuild@sha256:eb5578cfc06e070a09deb7b5852474bd128a4e561f9f123261b5ed2405e478b1
+    strategy:
+      matrix:
+        target: [x86_64-unknown-linux-musl, aarch64-unknown-linux-musl]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.build_ref || github.sha }}
+      - run: rustup target add ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - run: cargo zigbuild --release --locked -p tuner --target ${{ matrix.target }}
+      - name: Package
+        run: |
+          version=$(grep -m1 '^version' Cargo.toml | cut -d '"' -f2)
+          arch=${{ matrix.target }}; arch=${arch%%-*}
+          name="tuner-tui-v${version}-${arch}-linux-musl"
+          mkdir "$name"
+          cp "target/${{ matrix.target }}/release/tuner" README.md LICENSE "$name/"
+          tar czf "$name.tar.gz" "$name"
+          sha256sum "$name.tar.gz" > "$name.tar.gz.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tui-${{ matrix.target }}
+          path: tuner-tui-*.tar.gz*
+
+  packages:
+    name: .deb and .rpm
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.build_ref || github.sha }}
+      - name: Install GTK4
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgtk-4-dev
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deb,cargo-generate-rpm
+      - run: packaging/build-packages.sh
+      - name: Checksums
+        run: cd dist && for f in *.deb *.rpm; do sha256sum "$f" > "$f.sha256"; done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: dist/*

@@ -1,0 +1,55 @@
+# Maintainer: Tuner IPTV
+#
+# Builds the latest main branch from source. Regenerate .SRCINFO after
+# editing:  makepkg --printsrcinfo > .SRCINFO
+# See docs/packaging.md.
+
+pkgname=tuner-iptv-git
+pkgver=0.1.0.r0.g0000000
+pkgrel=1
+pkgdesc='Lean, Linux-native IPTV player written in Rust (terminal and GTK4), powered by mpv (git)'
+arch=('x86_64' 'aarch64')
+url='https://github.com/tuner-iptv/Tuner'
+license=('GPL-3.0-or-later')
+depends=('mpv' 'gtk4' 'glibc' 'gcc-libs')
+makedepends=('cargo' 'git')
+provides=('tuner-iptv')
+# The AUR radio player also installs /usr/bin/tuner.
+conflicts=('tuner-iptv' 'tuner-iptv-bin' 'tuner' 'tuner-git')
+options=('!lto')
+source=("tuner::git+$url.git")
+sha256sums=('SKIP')
+
+pkgver() {
+  cd tuner
+  git describe --long --tags --abbrev=7 | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g'
+}
+
+prepare() {
+  cd tuner
+  export RUSTUP_TOOLCHAIN=stable
+  cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+}
+
+build() {
+  cd tuner
+  export RUSTUP_TOOLCHAIN=stable
+  export CARGO_TARGET_DIR=target
+  cargo build --frozen --release -p tuner -p tuner-gtk
+}
+
+check() {
+  cd tuner
+  export RUSTUP_TOOLCHAIN=stable
+  cargo test --frozen --workspace
+}
+
+package() {
+  cd tuner
+  install -Dm755 target/release/tuner "$pkgdir/usr/bin/tuner"
+  install -Dm755 target/release/tuner-gtk "$pkgdir/usr/bin/tuner-gtk"
+  install -Dm644 packaging/tuner-gtk.desktop "$pkgdir/usr/share/applications/tuner-gtk.desktop"
+  install -Dm644 packaging/io.github.tuner_iptv.Tuner.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/io.github.tuner_iptv.Tuner.svg"
+  install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

@@ -1,0 +1,7 @@
+#EXTM3U
+#EXTINF:-1 tvg-id="bbb" group-title="Test Streams",Big Buck Bunny (HLS)
+https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8
+#EXTINF:-1 tvg-id="tos" group-title="Test Streams",Tears of Steel (HLS)
+https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8
+#EXTINF:-1 group-title="Audio",Radio Paradise (AAC)
+https://stream.radioparadise.com/aac-128

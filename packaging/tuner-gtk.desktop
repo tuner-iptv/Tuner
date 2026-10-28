@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Tuner
+GenericName=IPTV Player
+Comment=Lean, Linux-native IPTV player written in Rust; plays in mpv
+Exec=tuner-gtk
+Icon=io.github.tuner_iptv.Tuner
+Terminal=false
+Categories=AudioVideo;Video;Player;TV;
+Keywords=iptv;tv;m3u;xtream;mpv;
+StartupWMClass=io.github.tuner_iptv.Tuner

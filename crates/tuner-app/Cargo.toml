@@ -1,0 +1,23 @@
+[package]
+name = "tuner-app"
+description = "Front-end independent application services for tuner: config, sources, stream limits."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+tuner-core.workspace = true
+tuner-mpv.workspace = true
+
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+ureq.workspace = true
+
+[lints]
+workspace = true

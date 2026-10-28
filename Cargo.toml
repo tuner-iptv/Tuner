@@ -1,0 +1,38 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.92"
+license = "GPL-3.0-or-later"
+authors = ["Tuner IPTV"]
+repository = "https://github.com/tuner-iptv/Tuner"
+publish = false
+
+[workspace.dependencies]
+tuner-core = { path = "crates/tuner-core" }
+tuner-mpv = { path = "crates/tuner-mpv" }
+tuner-app = { path = "crates/tuner-app" }
+
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+gtk = { package = "gtk4", version = "0.11", features = ["v4_10"] }
+ratatui = "0.29"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+signal-hook = "0.4"
+thiserror = "2"
+toml = "1"
+ureq = "2"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+
+[profile.release]
+lto = "thin"
+strip = true

@@ -1,0 +1,122 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (for example 0.3.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    outputs:
+      ref: ${{ steps.prepare.outputs.ref }}
+      tag: ${{ steps.prepare.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - id: prepare
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_REF: ${{ github.ref }}
+          INPUT_REF_NAME: ${{ github.ref_name }}
+          INPUT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = push ]; then
+            version=$(grep -m1 '^version' Cargo.toml | cut -d '"' -f2)
+            [ "v$version" = "$INPUT_REF_NAME" ] || { echo "::error::Tag does not match Cargo.toml version"; exit 1; }
+            echo "ref=$INPUT_SHA" >> "$GITHUB_OUTPUT"
+            echo "tag=$INPUT_REF_NAME" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          [ "$INPUT_REF" = refs/heads/main ] || { echo "::error::Run releases from main"; exit 1; }
+          [[ "$INPUT_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || { echo "::error::Use a stable version such as 0.3.0"; exit 1; }
+          tag="v$INPUT_VERSION"
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
+            echo "::error::Tag $tag already exists"
+            exit 1
+          fi
+          python3 -c 'import os, pathlib, re; p = pathlib.Path("Cargo.toml"); s = p.read_text(); s, n = re.subn(r"(?m)^(\[workspace\.package\]\nversion = \x22)[^\x22]+(\x22)$", lambda m: m[1] + os.environ["INPUT_VERSION"] + m[2], s); assert n == 1, "workspace version not found"; p.write_text(s)'
+          cargo update --workspace
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Cargo.toml Cargo.lock
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: release $tag"
+          fi
+          git tag "$tag"
+          git push --atomic origin HEAD:refs/heads/main "refs/tags/$tag"
+          echo "ref=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+  # Static TUI binaries (x86_64, aarch64) and .deb/.rpm packages.
+  artifacts:
+    needs: prepare
+    uses: ./.github/workflows/build-artifacts.yml
+    with:
+      build_ref: ${{ needs.prepare.outputs.ref }}
+
+  release:
+    needs: [prepare, artifacts]
+    # Pinned: the oldest Ubuntu whose glibc/GTK the binaries should run on.
+    runs-on: ubuntu-24.04
+    env:
+      TARGET: x86_64-unknown-linux-gnu
+      RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.ref }}
+      - name: Install GTK4
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgtk-4-dev
+
+      - name: Check tag matches Cargo.toml version
+        run: |
+          version=$(grep -m1 '^version' Cargo.toml | cut -d '"' -f2)
+          if [ "v$version" != "$RELEASE_TAG" ]; then
+            echo "::error::Tag $RELEASE_TAG does not match Cargo.toml version $version"
+            exit 1
+          fi
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - run: cargo test --workspace --locked
+      - run: cargo build --release --locked -p tuner -p tuner-gtk --target "$TARGET"
+
+      - name: Package
+        run: |
+          name="tuner-${RELEASE_TAG}-x86_64-linux"
+          mkdir "$name"
+          cp "target/$TARGET/release/tuner" "target/$TARGET/release/tuner-gtk" \
+             packaging/tuner-gtk.desktop packaging/io.github.tuner_iptv.Tuner.svg README.md LICENSE "$name/"
+          tar czf "$name.tar.gz" "$name"
+          sha256sum "$name.tar.gz" > "$name.tar.gz.sha256"
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          generate_release_notes: true
+          files: |
+            tuner-*.tar.gz
+            tuner-*.tar.gz.sha256
+            artifacts/*
