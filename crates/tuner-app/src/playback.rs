@@ -112,7 +112,8 @@ pub enum Request {
 /// stopped and the stream slot is released.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Tick {
-    /// The user closed the player window.
+    /// The user closed the player window, or stopped playback from inside
+    /// mpv (its controls, MPRIS media keys).
     Closed,
     /// The stream could not be opened or never started (unreachable server,
     /// dead link, …). The player was closed; show the message.
@@ -237,6 +238,7 @@ impl<P: Playback, G: StreamGate> Controller<P, G> {
         self.stop();
         Some(match end {
             tuner_mpv::StreamEnd::Ended => Tick::Ended,
+            tuner_mpv::StreamEnd::Stopped => Tick::Closed,
             end => Tick::Failed(capitalize(&end.to_string())),
         })
     }
@@ -515,6 +517,14 @@ mod tests {
         *end.borrow_mut() = Some(tuner_mpv::StreamEnd::Ended);
         assert_eq!(c.tick(), Some(Tick::Ended));
         assert_eq!(c.playing(), None);
+
+        // Stopped inside mpv: the slot must not stay held.
+        log.borrow_mut().clear();
+        c.request(0, "c");
+        *end.borrow_mut() = Some(tuner_mpv::StreamEnd::Stopped);
+        assert_eq!(c.tick(), Some(Tick::Closed));
+        assert_eq!(c.playing(), None);
+        assert_eq!(*log.borrow(), ["begin", "play c", "shutdown", "end"]);
     }
 
     #[test]

@@ -64,6 +64,9 @@ pub enum StreamEnd {
     Stalled,
     /// It played and then ended (a live stream dropped, a movie finished).
     Ended,
+    /// Stopped from inside mpv rather than by tuner (its keys or on-screen
+    /// controller, MPRIS media keys).
+    Stopped,
 }
 
 impl fmt::Display for StreamEnd {
@@ -81,6 +84,7 @@ impl fmt::Display for StreamEnd {
                 NO_DATA_TIMEOUT.as_secs()
             ),
             StreamEnd::Ended => write!(f, "the stream ended"),
+            StreamEnd::Stopped => write!(f, "playback was stopped in mpv"),
         }
     }
 }
@@ -221,7 +225,9 @@ impl LoadWatch {
                         load.started = false;
                         return None;
                     }
-                    // Stopped or replaced on purpose.
+                    // tuner forgets the file before it stops or replaces it,
+                    // so this stop came from mpv's side.
+                    Some("stop" | "quit") => StreamEnd::Stopped,
                     _ => {
                         self.load = None;
                         return None;
@@ -369,6 +375,22 @@ mod tests {
         assert_eq!(end, None);
         // The old file's events moved nothing along.
         assert_eq!(w.stage(), Some(LoadStage::Connecting));
+    }
+
+    #[test]
+    fn a_stop_from_inside_mpv_is_reported() {
+        let (mut w, t) = begun(Some(1));
+        let end = feed(
+            &mut w,
+            t,
+            &[
+                json!({"event": "start-file", "playlist_entry_id": 1}),
+                json!({"event": "playback-restart"}),
+                json!({"event": "end-file", "reason": "stop", "playlist_entry_id": 1}),
+            ],
+        );
+        assert_eq!(end, Some(StreamEnd::Stopped));
+        assert_eq!(w.stage(), None);
     }
 
     #[test]

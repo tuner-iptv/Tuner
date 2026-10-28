@@ -107,7 +107,11 @@ stages, each with its own failure signal instead of one fixed timeout:
 - `end-file` for our entry: `reason: "error"` → `StreamEnd::Failed` (the
   problem, then mpv's `file_error`); `"eof"` → `Ended` if it played, else `Failed`;
   `"redirect"` (a playlist link) → follow the next `start-file`;
-  `"stop"`/`"quit"` → nothing to report.
+  `"stop"`/`"quit"` → `Stopped` (stopped from mpv's side: its keys or
+  on-screen controller, MPRIS media keys). tuner's own `stop` and
+  `loadfile replace` never get here: `Mpv::stop` forgets the file first, and a
+  replaced file's `end-file` carries the old entry id. The controller treats
+  `Stopped` like a closed window, so the stream slot is released.
 
 Typical times: refused connection or HTTP error, under a second; a server
 that accepts and goes silent, or a redirect to an unreachable streaming
