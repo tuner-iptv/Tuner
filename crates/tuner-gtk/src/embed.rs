@@ -862,15 +862,17 @@ fn autohide(pane: &gtk::Overlay, bar: &gtk::Revealer, menu: gtk::MenuButton) {
 /// side, read from mpv's `track-list` each time the menu opens.
 fn track_menu(core: &Arc<Core>) -> gtk::MenuButton {
     let columns = gtk::Box::new(gtk::Orientation::Horizontal, 16);
-    let popover = gtk::Popover::builder().child(&columns).build();
+    // Right edges aligned with the button, so the wide menu opens leftwards,
+    // over the video, instead of past the window's edge.
+    let popover = gtk::Popover::builder()
+        .child(&columns)
+        .halign(gtk::Align::End)
+        .build();
     let menu = gtk::MenuButton::builder()
         .icon_name("media-view-subtitles-symbolic")
         .tooltip_text("Audio & subtitles")
         .popover(&popover)
         .direction(gtk::ArrowType::Up)
-        // Right edges aligned, so the wide menu opens leftwards, over the
-        // video, instead of past the window's edge.
-        .halign(gtk::Align::End)
         .build();
     menu.add_css_class("video-tracks");
     let core = core.clone();
@@ -882,8 +884,11 @@ fn track_menu(core: &Arc<Core>) -> gtk::MenuButton {
             .get(c"track-list")
             .and_then(|json| serde_json::from_str(&json).ok())
             .unwrap_or_default();
+        // Long track lists scroll within half the window instead of
+        // overflowing it.
+        let max_height = popover.root().map_or(400, |w| w.height() / 2);
         for (kind, heading) in [("audio", "Audio"), ("sub", "Subtitles")] {
-            let column = track_column(&core, popover, &tracks, kind, heading);
+            let column = track_column(&core, popover, &tracks, kind, heading, max_height);
             columns.append(&column);
         }
     });
@@ -898,6 +903,7 @@ fn track_column(
     tracks: &[Value],
     kind: &str,
     heading: &str,
+    max_height: i32,
 ) -> gtk::Box {
     let column = gtk::Box::new(gtk::Orientation::Vertical, 6);
     let title = gtk::Label::builder().label(heading).xalign(0.0).build();
@@ -906,7 +912,14 @@ fn track_column(
     let list = gtk::ListBox::new();
     list.set_selection_mode(gtk::SelectionMode::None);
     list.add_css_class("track-list");
-    column.append(&list);
+    let scroll = gtk::ScrolledWindow::builder()
+        .child(&list)
+        .hscrollbar_policy(gtk::PolicyType::Never)
+        .propagate_natural_height(true)
+        .propagate_natural_width(true)
+        .max_content_height(max_height)
+        .build();
+    column.append(&scroll);
 
     let property = if kind == "sub" { "sid" } else { "aid" };
     let ours: Vec<&Value> = tracks.iter().filter(|t| t["type"] == kind).collect();
