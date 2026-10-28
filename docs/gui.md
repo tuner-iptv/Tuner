@@ -1,7 +1,8 @@
 # GUI (`tuner-gtk`)
 
-Tuner's native GTK4 desktop interface: browse channels in a window and watch
-in mpv's separate window. Both the desktop and terminal interfaces share
+Tuner's native GTK4 desktop interface: browse channels and watch them in the
+same window, with mpv embedded via libmpv ([Embedded video](#embedded-video)),
+or in mpv's own window. Both the desktop and terminal interfaces share
 accounts, settings, and playback control. Code: `crates/tuner-gtk`.
 Decision record: [ADR 0006](decisions/0006-gtk4-gui.md). A browser mock of this
 layout powers the project site's demo; see [website.md](website.md).
@@ -34,6 +35,22 @@ Needs GTK ≥ 4.10 and libmpv at runtime (`pacman -S gtk4 mpv`; Ubuntu:
 ├────────────────┴───────────────────────────────────────┴──────────────────────────┤
 │ [logo] Demo News HD                                      Playing in mpv  ⏸  ⏹     │
 │        #1 · News · MPEG-TS                                                        │
+│ Last action                                         mock: 20 live · limit 1       │
+└───────────────────────────────────────────────────────────────────────────────────┘
+```
+
+While something plays in the embedded video, the video pane takes the
+details panel's place and the window's extra width:
+
+```
+┌ Tuner · account ▾ ⟳ ─── [ Search channels ] ─────────────────────────────────────┐
+│Your channels   │All channels   20 channels ┃                                      │
+│All channels 20 │1 [logo] Demo News HD    ▶ ┃               (video)                │
+│News          5 │2 [logo] World Bulletin    ┃                                      │
+│Sports        5 │3 [logo] Café Istanbul     ┃ ──────────────────────────────────── │
+│                │                           ┃ ⏸ « » vol ━━ 0:42     cc i ≡ ↗ ▭ ⛶  │
+├────────────────┴───────────────────────────┸──────────────────────────────────────┤
+│ [logo] Demo News HD                                      Playing in mpv  ⏸  ⏹     │
 │ Last action                                         mock: 20 live · limit 1       │
 └───────────────────────────────────────────────────────────────────────────────────┘
 ```

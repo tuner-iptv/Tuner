@@ -20,7 +20,7 @@ python3 -m http.server -d site 8000   # then open http://localhost:8000
 | `site/assets/theme.js`       | Page light/dark switch; separate theme for the demo         |
 | `site/assets/themes-data.js` | **Generated** from `crates/tuner-gtk/src/themes.rs`         |
 | `site/assets/data.js`        | Fake channels, movies, series and accounts for the demo     |
-| `site/assets/demo.js`        | The demo: shared model, GTK mock, terminal mock, mpv window |
+| `site/assets/demo.js`        | The demo: shared model, GTK mock (with embedded video), terminal mock, mpv window |
 | `site/assets/site.js`        | Nav, screenshot tour, copy buttons, mode switch, release info |
 | `site/assets/img/`           | Copies of `docs/images/*.png`                               |
 | `site/scripts/gen-themes.py` | Regenerates `themes-data.js`                                |
@@ -50,6 +50,7 @@ behaviour covered below, update the demo in the same change:
 | ----------------------------------------------- | ------------------------------------- |
 | TUI keys ([keybindings.md](keybindings.md))     | `Tui.key`, the hint line, key chips   |
 | GUI layout and keys ([gui.md](gui.md))          | `Gtk` view and `Gtk.key`              |
+| Embedded video ([gui.md](gui.md#embedded-video)) | `Video` pane, `act.detach`, `tracks`, `params` |
 | Stream limits ([stream-limits.md](stream-limits.md)) | `act.play`, `act.answer`, `data.js` accounts |
 | Built-in themes                                 | regenerate `themes-data.js`           |
 
@@ -58,14 +59,21 @@ The mock follows these rules:
 - One shared model (`s`, `act`) drives both views, like both front-ends share
   `tuner_app`. Views only render and route input.
 - Playback always goes through `act.play` / `act.start`, which applies the
-  stream-limit check. Never start playback anywhere else.
+  stream-limit check. Never start playback anywhere else. "Open in mpv window"
+  (`act.detach`) replays through `act.start` too, keeping the slot.
+- The desktop mock plays in its embedded `Video` pane; the terminal mock, and
+  the desktop after "Open in mpv window", play in the floating `Mpv` window.
+  Both paint the same `paint` picture from `s.playing.pos`, driven by one
+  `Ticker`.
 - No real channels, providers or credentials. The fake stream URL is hidden
   until revealed, as in the apps.
 - The page has only a light/dark switch. The demo has its own theme picker
   (the app's built-in palettes) and never recolours the page.
 - Colours come from CSS variables set by `theme.js`; no hard-coded colours
-  in the GTK and TUI mocks (the mpv window and channel logos are the
-  exception: they stand in for video and artwork).
+  in the GTK and TUI mocks (the video picture, mpv's stats overlay, the mpv
+  window and channel logos are the exception: they stand in for video and
+  artwork). The embedded video's control bar, badge and track menu are
+  tuner's own widgets, so they use the theme.
 - The hero's "now playing" card mirrors the demo's playback state; keep that
   hook (end of `demo.js`) when changing how playback is stored.
 - Keep copy short. Sections are a one-line heading plus a visual; put detail in

@@ -3,8 +3,9 @@
 **A lean, Linux-native IPTV player written in Rust.**
 
 Open a playlist, find a channel, and watch. Tuner pairs a keyboard-first
-terminal interface with a native GTK4 desktop app. Both play streams in
-[mpv](https://mpv.io) and share your accounts and settings.
+terminal interface with a native GTK4 desktop app. Both play streams with
+[mpv](https://mpv.io): the desktop app shows the video right in its window,
+the terminal app in mpv's own window. They share your accounts and settings.
 
 ```sh
 tuner ~/Downloads/playlist.m3u
@@ -22,8 +23,28 @@ Tuner compiles to native code with Rust. The terminal interface uses ratatui;
 the desktop app uses GTK4. No Electron, web view, or background service.
 Install just the terminal binary if that is all you need.
 
-Tuner handles browsing and stream control; mpv handles video playback in its
-own window. Your `mpv.conf` applies, including your hardware-decoding settings.
+Tuner handles browsing and stream control; mpv handles video playback. Tuner
+never decodes video itself. Your `mpv.conf` applies, including your
+hardware-decoding settings.
+
+### Video right in the window
+
+The desktop app embeds mpv (libmpv): the video plays beside the channel list,
+and the details panel steps aside while it does. Point at the video for
+Tuner's own control bar, themed like the rest of the window:
+
+- play/pause, ±10 s, a seek bar for movies and episodes, mute and volume
+- **Audio & subtitles**: tracks listed by language, with codec, channels and
+  Default/Forced flags
+- **Stream info** badge (`1920×1080 · 25 fps · 4.2 Mb/s`) and mpv's own
+  statistics overlay
+- **Cinema mode** (video fills the window) and **fullscreen** (`F11` or
+  double-click)
+- **Open in mpv window**: moves the stream to a separate mpv window, keeping
+  its tracks, volume and position, without opening a second connection
+
+If libmpv or OpenGL can't start, the app falls back to mpv's own window. See
+[embedded video](docs/gui.md#embedded-video).
 
 ### Open a playlist and watch
 
@@ -49,19 +70,20 @@ and ARM64 Linux.
 | Terminal (`tuner`) | Desktop (`tuner-gtk`) |
 | ------------------- | ---------------------- |
 | ![Tuner in the terminal](docs/images/tuner-tui.png) | ![Tuner desktop app, cards view](docs/images/tuner-gtk-cards.png) |
-| Vim-style keys, uses your terminal's colours | GTK4 window with channel logos and built-in themes |
+| Vim-style keys, uses your terminal's colours | GTK4 window with channel logos, built-in themes and embedded video |
 
 In the terminal, use `j`/`k` or the arrow keys to move, `/` to search,
 `Enter` to play, and `q` to quit. In the desktop app, type to search, press
-`Enter` to play, and use `Ctrl+Q` to quit. See the full
+`Enter` to play, `F11` for fullscreen video, and `Ctrl+Q` to quit. See the full
 [terminal](docs/keybindings.md) and [desktop](docs/gui.md#keys) shortcuts.
 
 ### Stream limits built in
 
 Tuner coordinates local playback with per-account stream slots and checks
 Xtream providers for active connections before starting another stream.
-It warns or blocks according to your settings. Cross-device checks depend
-on the provider's reporting; see [stream limits](docs/stream-limits.md).
+It warns or blocks according to your settings, and moving a stream from the
+window to mpv's own window reuses its slot. Cross-device checks depend on the
+provider's reporting; see [stream limits](docs/stream-limits.md).
 
 Tuner redacts credentials from its logs and error messages, and can read
 passwords from your password manager. Stream URLs contain credentials, so
@@ -69,7 +91,8 @@ treat mpv logs and watch history as sensitive. See [credentials](docs/sources.md
 
 ## Install
 
-Tuner needs **mpv** for playback; the packages below install it for you.
+Tuner needs **mpv** for playback (the desktop app also uses libmpv for its
+embedded video); the packages below install both for you.
 The distribution package is named `tuner-iptv`; the commands are `tuner`
 and `tuner-gtk`.
 
@@ -126,6 +149,9 @@ cd tuner
 cargo install --locked --path crates/tuner       # terminal
 cargo install --locked --path crates/tuner-gtk   # desktop
 ```
+
+Add `--no-default-features` to the desktop build for a GUI without embedded
+video that always plays in mpv's own window (no libmpv needed to build).
 
 More detail: [docs/packaging.md](docs/packaging.md).
 
