@@ -31,6 +31,7 @@ process** controlled over mpv's JSON IPC socket. Tuner never decodes video itsel
 | Picking up a feature (Xtream, EPG, favorites, …)   | [docs/roadmap.md](docs/roadmap.md)                       |
 | Wondering *why* something is the way it is         | [docs/decisions/](docs/decisions/README.md) (ADRs)       |
 | Editing CI or cutting a release                    | [docs/ci.md](docs/ci.md)                                 |
+| Touching the project site or its browser demo (`site/`) | [docs/website.md](docs/website.md)                  |
 | Packaging (.deb, .rpm, AUR, static TUI)            | [docs/packaging.md](docs/packaging.md)                   |
 
 Full index: [docs/README.md](docs/README.md).

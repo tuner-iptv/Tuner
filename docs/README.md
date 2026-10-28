@@ -8,6 +8,7 @@ installation and everyday use.
 | ------------------------------------------ | --------------------------------------------------- |
 | [development.md](development.md)           | Toolchain, build/test/lint commands, running locally |
 | [ci.md](ci.md)                             | CI workflows, release process, versioning           |
+| [website.md](website.md)                   | GitHub Pages site and its in-browser demo (`site/`) |
 | [packaging.md](packaging.md)               | Release assets, distro support, .deb/.rpm/AUR, static TUI |
 | [sources.md](sources.md)                   | Source types, config file, Xtream API, credentials |
 | [m3u-format.md](m3u-format.md)             | Supported M3U syntax and tolerated quirks           |

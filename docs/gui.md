@@ -3,7 +3,8 @@
 Tuner's native GTK4 desktop interface: browse channels in a window and watch
 in mpv's separate window. Both the desktop and terminal interfaces share
 accounts, settings, and playback control. Code: `crates/tuner-gtk`.
-Decision record: [ADR 0006](decisions/0006-gtk4-gui.md).
+Decision record: [ADR 0006](decisions/0006-gtk4-gui.md). A browser mock of this
+layout powers the project site's demo; see [website.md](website.md).
 
 ```sh
 cargo run -p tuner-gtk                       # first configured source

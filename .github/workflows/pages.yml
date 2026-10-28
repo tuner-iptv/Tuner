@@ -1,0 +1,52 @@
+name: Website
+
+# Builds nothing: `site/` is plain HTML, CSS and JS. Pull requests only check
+# it; pushes to main publish it to GitHub Pages. See docs/website.md.
+on:
+  pull_request:
+    paths: ["site/**", "crates/tuner-gtk/src/themes.rs", ".github/workflows/pages.yml"]
+  push:
+    branches: [main]
+    paths: ["site/**", "crates/tuner-gtk/src/themes.rs", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: check site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: JavaScript parses
+        run: for f in site/assets/*.js; do node --check "$f"; done
+      - name: Theme list matches themes.rs
+        run: |
+          python3 site/scripts/gen-themes.py
+          git diff --exit-code -- site/assets/themes-data.js
+
+  deploy:
+    name: deploy to Pages
+    if: github.event_name != 'pull_request'
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # job-level permissions replace the top-level ones; checkout needs this
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4

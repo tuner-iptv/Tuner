@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tuner: a lean IPTV player for Linux</title>
+  <meta name="description" content="Tuner is a lean, Linux-native IPTV player written in Rust. A keyboard-first terminal UI and a native GTK4 app, playing in mpv. Try it in your browser.">
+  <meta name="color-scheme" content="dark light">
+  <meta property="og:title" content="Tuner: a lean IPTV player for Linux">
+  <meta property="og:description" content="Keyboard-first terminal UI and native GTK4 app for M3U and Xtream Codes, playing in mpv. Try the live demo in your browser.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="assets/img/tuner-gtk-cards.png">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <script src="assets/themes-data.js"></script>
+  <script src="assets/theme.js"></script>
+  <link rel="stylesheet" href="assets/style.css">
+  <script>document.documentElement.classList.add("js");</script>
+</head>
+<body>
+  <a class="skip" href="#demo">Skip to the demo</a>
+
+  <header class="nav" id="top">
+    <div class="wrap nav-in">
+      <a class="brand" href="#top" aria-label="Tuner home">
+        <img src="assets/favicon.svg" alt="" width="30" height="30">
+        <span>Tuner</span>
+      </a>
+      <nav class="nav-links" id="nav-links" aria-label="Main">
+        <a href="#demo-section">Demo</a>
+        <a href="#features">Features</a>
+        <a href="#tour">Screenshots</a>
+        <a href="#install">Install</a>
+        <a href="https://github.com/tuner-iptv/Tuner/tree/main/docs">Docs</a>
+      </nav>
+      <div class="nav-end">
+        <a class="icon-link" href="https://github.com/tuner-iptv/Tuner" aria-label="Tuner on GitHub">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.38-3.88-1.38-.52-1.33-1.28-1.69-1.28-1.69-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.19 1.76 1.19 1.03 1.76 2.69 1.25 3.35.96.1-.75.4-1.25.73-1.54-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.18 1.83 1.18 3.09 0 4.42-2.69 5.39-5.25 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5z"/></svg>
+        </a>
+        <button class="icon-link mode-btn" id="mode-btn" type="button" aria-label="Switch colour mode" title="Light / dark">
+          <svg class="i-sun" viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+          <svg class="i-moon" viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+        </button>
+        <a class="btn btn-primary btn-sm" href="#install">Install</a>
+        <button class="menu-btn" id="menu-btn" aria-label="Menu" aria-expanded="false" aria-controls="nav-links">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- Hero -->
+    <section class="hero">
+      <div class="wrap hero-in">
+        <div class="hero-copy">
+          <a class="label label-badge" href="https://github.com/tuner-iptv/Tuner/releases/latest" id="version-badge">
+            <span class="dot"></span><span id="version-text">Open-source IPTV player</span>
+          </a>
+          <h1>Every channel,<br><span class="grad">one keystroke away.</span></h1>
+          <p class="lead">M3U and Xtream Codes in a terminal or GTK4 app. Playback in mpv.</p>
+          <div class="cta">
+            <a class="btn btn-primary btn-lg" href="#demo-section" data-try>▶ Try it in your browser</a>
+            <a class="btn btn-ghost btn-lg" href="#install">Install</a>
+          </div>
+          <ul class="stats" aria-label="At a glance">
+            <li><b>Rust</b><span>no Electron</span></li>
+            <li><b>2</b><span>interfaces</span></li>
+            <li><b>mpv</b><span>playback</span></li>
+            <li><b>GPL-3.0</b><span>license</span></li>
+          </ul>
+        </div>
+
+        <!-- follows what is playing in the demo below -->
+        <aside class="np" id="np" aria-live="polite" aria-label="Now playing in the demo">
+          <div class="np-top"><span class="label">Now playing</span><span class="np-state" id="np-state">Idle</span></div>
+          <b class="np-title" id="np-title">Nothing yet</b>
+          <span class="np-sub" id="np-sub">Press Enter on a channel in the demo</span>
+          <div class="np-bar"><i></i></div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- Demo: the app window -->
+    <section class="demo-sec" id="demo-section">
+      <div class="wrap">
+        <div class="demo" id="demo" data-view="gui">
+          <div class="demo-top">
+            <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+            <div class="tabs" role="tablist" aria-label="Interface">
+              <button role="tab" data-view="gui" class="on" aria-selected="true"><span class="tab-dot"></span>Desktop<span class="tab-sub"> · tuner-gtk</span></button>
+              <button role="tab" data-view="tui" aria-selected="false"><span class="tab-dot"></span>Terminal<span class="tab-sub"> · tuner</span></button>
+            </div>
+            <p class="demo-note">Live demo · mock data · nothing is streamed</p>
+          </div>
+          <div class="stage"></div>
+          <div class="tui-keys" id="tui-keys" hidden aria-label="On-screen keys"></div>
+        </div>
+        <p class="demo-foot" id="demo-foot"></p>
+      </div>
+    </section>
+
+    <!-- Features: one line each, the mockup does the talking -->
+    <section class="sec" id="features" aria-labelledby="feat-h">
+      <div class="wrap">
+        <div class="sec-head">
+          <h2 id="feat-h">Built like a remote control, not a browser tab</h2>
+          <p class="sub">Tuner browses and controls. mpv plays.</p>
+        </div>
+
+        <div class="bento">
+          <article class="card c7">
+            <h3>Any playlist, one library</h3>
+            <p>Open a file or URL, or save an account once for both interfaces.</p>
+            <div class="mock">
+              <div class="pills"><span class="pill">M3U file</span><span class="pill">M3U URL</span><span class="pill">Xtream Codes</span></div>
+              <div class="field"><span class="field-k">CMD</span><code>tuner playlist.m3u</code><span class="field-go">Run ↵</span></div>
+            </div>
+          </article>
+
+          <article class="card c5">
+            <h3>Stream limits built in</h3>
+            <p>Local slots, plus a provider check before another stream starts.</p>
+            <div class="mock mock-limit">
+              <div class="slots"><span class="slot on"></span><span class="slot on"></span><span class="slot"></span><span class="slot"></span><em>2 / 4</em></div>
+              <div class="mini-dialog"><b>Stream limit</b><span>1 of 1 connections in use</span><div><i>Cancel</i><i class="danger">Play anyway</i></div></div>
+            </div>
+          </article>
+
+          <article class="card c4">
+            <h3>Keyboard-first</h3>
+            <p>Vim keys in the terminal, type-to-search on the desktop.</p>
+            <div class="mock mock-keys">
+              <span class="keycap">j</span><span class="keycap">k</span><span class="keycap">/</span><span class="keycap wide">Enter</span><span class="keycap wide">Space</span><span class="keycap">q</span>
+            </div>
+          </article>
+
+          <article class="card c4">
+            <h3>Plays in mpv</h3>
+            <p>Your <code>mpv.conf</code>, hardware decoding, filters, shaders.</p>
+            <div class="mock mock-mpv">
+              <div class="mpv-ph"><span>▶</span></div>
+              <div class="mpv-prog"><i></i></div>
+            </div>
+          </article>
+
+          <article class="card c4">
+            <h3>Credentials stay private</h3>
+            <p>No password flags. Stream URLs stay hidden until you ask.</p>
+            <div class="mock mock-secret">
+              <code>http://line.example.com/live/<b>••••••••</b>/1001.ts</code>
+              <span class="pill">Show stream URL</span>
+            </div>
+          </article>
+
+          <article class="card c12 strip">
+            <div class="strip-copy">
+              <h3>Runs where Linux runs</h3>
+              <p>Native packages and static terminal builds.</p>
+            </div>
+            <dl class="strip-cols">
+              <div><dt>Debian / Ubuntu</dt><dd>.deb</dd></div>
+              <div><dt>Fedora</dt><dd>.rpm</dd></div>
+              <div><dt>Arch</dt><dd>AUR</dd></div>
+              <div><dt>Any Linux</dt><dd>static TUI · x86_64, ARM64</dd></div>
+              <div><dt>Interface</dt><dd><span class="pill">Terminal</span> <span class="pill">GTK4</span></dd></div>
+            </dl>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- Screen tour -->
+    <section class="sec alt" id="tour" aria-labelledby="tour-h">
+      <div class="wrap">
+        <div class="sec-head">
+          <h2 id="tour-h">Flip through the apps</h2>
+          <p class="sub">Real screenshots of tuner and tuner-gtk.</p>
+        </div>
+
+        <div class="tour" id="tour-box">
+          <div class="tour-list" role="tablist" aria-label="Screenshots">
+            <div class="tour-head"><span class="label">Screens</span><span class="label">03</span></div>
+            <button type="button" role="tab" class="tour-item on" aria-selected="true" data-i="0">
+              <span class="tour-n">01</span>
+              <span class="tour-t"><b>Desktop</b><small>Groups, channels and details side by side.</small></span>
+              <i class="tour-bar"></i>
+            </button>
+            <button type="button" role="tab" class="tour-item" aria-selected="false" data-i="1">
+              <span class="tour-n">02</span>
+              <span class="tour-t"><b>Cards</b><small>Logos in a grid. Same selection, same playback.</small></span>
+              <i class="tour-bar"></i>
+            </button>
+            <button type="button" role="tab" class="tour-item" aria-selected="false" data-i="2">
+              <span class="tour-n">03</span>
+              <span class="tour-t"><b>Terminal</b><small>Vim-style keys, your terminal's colours.</small></span>
+              <i class="tour-bar"></i>
+            </button>
+            <div class="tour-foot"><span class="label">↑ ↓ screen</span><button type="button" class="tour-pause" id="tour-pause" aria-pressed="false">Pause</button></div>
+          </div>
+
+          <div class="tour-frame">
+            <a href="assets/img/tuner-gtk.png" target="_blank" rel="noopener" class="tour-shot on" data-i="0" title="Open full size"><img src="assets/img/tuner-gtk.png" alt="Tuner's GTK4 desktop app with groups, channel list and details pane" loading="lazy" width="1261" height="1390" class="top"></a>
+            <a href="assets/img/tuner-gtk-cards.png" target="_blank" rel="noopener" class="tour-shot" data-i="1" title="Open full size"><img src="assets/img/tuner-gtk-cards.png" alt="Tuner's GTK4 desktop app showing channels as cards" loading="lazy" width="1261" height="800"></a>
+            <a href="assets/img/tuner-tui.png" target="_blank" rel="noopener" class="tour-shot" data-i="2" title="Open full size"><img src="assets/img/tuner-tui.png" alt="Tuner's terminal interface listing channels with a details pane" loading="lazy" width="2000" height="1059" class="fit"></a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Install -->
+    <section class="sec" id="install" aria-labelledby="install-h">
+      <div class="wrap">
+        <div class="sec-head split">
+          <h2 id="install-h">Get Tuner <span id="install-version"></span></h2>
+          <p class="sub"><span id="rel-meta">The packages install mpv for you.</span> <a href="https://github.com/tuner-iptv/Tuner/releases/latest">Release notes</a></p>
+        </div>
+
+        <div class="install">
+          <div class="rows">
+            <div class="row">
+              <div class="row-os"><b>Ubuntu / Debian</b><small>Ubuntu 24.04+ · Debian 13+</small></div>
+              <code class="row-file">tuner-iptv_…_amd64.deb</code>
+              <a class="btn btn-ghost btn-sm" href="https://github.com/tuner-iptv/Tuner/releases/latest">Download .deb</a>
+            </div>
+            <div class="row">
+              <div class="row-os"><b>Fedora</b><small>Fedora 40+</small></div>
+              <code class="row-file">tuner-iptv-….x86_64.rpm</code>
+              <a class="btn btn-ghost btn-sm" href="https://github.com/tuner-iptv/Tuner/releases/latest">Download .rpm</a>
+            </div>
+            <div class="row">
+              <div class="row-os"><b>Arch Linux</b><small>x86_64 · ARM64</small></div>
+              <code class="row-file">tuner-iptv-bin · tuner-iptv-git</code>
+              <a class="btn btn-ghost btn-sm" href="https://github.com/tuner-iptv/Tuner/tree/main/packaging/aur">View PKGBUILD</a>
+            </div>
+            <div class="row">
+              <div class="row-os"><b>Any Linux</b><small>Terminal only · bring your own mpv</small></div>
+              <code class="row-file">tuner-tui-v…-linux-musl.tar.gz</code>
+              <a class="btn btn-ghost btn-sm" href="https://github.com/tuner-iptv/Tuner/releases/latest">Download</a>
+            </div>
+          </div>
+
+          <div class="cmds">
+            <div class="cmd"><span class="label">Deb</span><code>sudo apt install ./tuner-iptv_*_amd64.deb</code><button class="copy" type="button">Copy</button></div>
+            <div class="cmd"><span class="label">Rpm</span><code>sudo dnf install ./tuner-iptv-*.x86_64.rpm</code><button class="copy" type="button">Copy</button></div>
+            <div class="cmd"><span class="label">Arch</span><code>cd packaging/aur/tuner-iptv-bin &amp;&amp; makepkg -si</code><button class="copy" type="button">Copy</button></div>
+            <div class="cmd"><span class="label">Cargo</span><code>cargo install --locked --path crates/tuner</code><button class="copy" type="button">Copy</button></div>
+            <p class="cmds-note">Then run <code>tuner playlist.m3u</code> or <code>tuner-gtk</code>. Accounts live in <code>~/.config/tuner/config.toml</code>.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Open source strip -->
+    <section class="pad-b">
+      <div class="wrap">
+        <div class="oss">
+          <div>
+            <h3>Tuner stays open source</h3>
+            <p>GPL-3.0-or-later. Issues and pull requests welcome.</p>
+          </div>
+          <div class="oss-btns">
+            <a class="btn btn-ghost" href="https://github.com/tuner-iptv/Tuner">Star on GitHub</a>
+            <a class="btn btn-ghost" href="https://github.com/tuner-iptv/Tuner/blob/main/docs/roadmap.md">Roadmap</a>
+            <a class="btn btn-ghost" href="https://github.com/tuner-iptv/Tuner/issues">Report an issue</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="wrap foot-in">
+      <div>
+        <a class="brand" href="#top"><img src="assets/favicon.svg" alt="" width="26" height="26"><span>Tuner</span></a>
+        <p class="small muted legal">
+          Tuner is a player. It does not supply channels, playlists or subscriptions, and
+          is not affiliated with any provider. The channels, movies and series in the demo are fictional.
+        </p>
+      </div>
+      <ul class="foot-links">
+        <li><a href="https://github.com/tuner-iptv/Tuner">GitHub</a></li>
+        <li><a href="https://github.com/tuner-iptv/Tuner/releases">Releases</a></li>
+        <li><a href="https://github.com/tuner-iptv/Tuner/tree/main/docs">Documentation</a></li>
+        <li><a href="https://github.com/tuner-iptv/Tuner/blob/main/LICENSE">GPL-3.0-or-later</a></li>
+      </ul>
+    </div>
+  </footer>
+
+  <script src="assets/data.js"></script>
+  <script src="assets/demo.js"></script>
+  <script src="assets/site.js"></script>
+</body>
+</html>

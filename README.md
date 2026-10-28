@@ -12,6 +12,8 @@ tuner ~/Downloads/playlist.m3u
 
 ![Tuner desktop app](docs/images/tuner-gtk.png)
 
+**[Try the interactive demo in your browser →](https://tuner-iptv.github.io/Tuner/)**
+
 ## Why Tuner
 
 ### Lean by design

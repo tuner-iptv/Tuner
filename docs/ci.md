@@ -16,6 +16,13 @@ Superseded runs on the same branch are cancelled. `Cargo.lock` is committed
 and `--locked` makes CI fail if it is out of date. Run `cargo build` and commit
 the lockfile.
 
+## `pages.yml`: the website
+
+Publishes `site/` to GitHub Pages on pushes to `main` that touch it, and
+checks it on pull requests (JavaScript parses; `themes-data.js` matches
+`themes.rs`). Needs **Settings → Pages → Source: GitHub Actions** once.
+Details: [website.md](website.md).
+
 ## `release.yml`: manual releases and tags `v*`
 
 Run the **Release** workflow on `main` and enter a stable version such as

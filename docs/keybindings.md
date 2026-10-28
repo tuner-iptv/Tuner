@@ -2,7 +2,8 @@
 
 Implemented in `crates/tuner/src/app.rs` (`handle_normal_key`,
 `handle_search_key`). The hint line is in `crates/tuner/src/ui.rs`. Keep all
-three in sync.
+three in sync, and the browser demo too (`site/assets/demo.js`, see
+[website.md](website.md)).
 
 ## Normal mode
 
