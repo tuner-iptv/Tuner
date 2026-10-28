@@ -28,7 +28,9 @@ The commands are `tuner` and `tuner-gtk`.
   builds cleanly for musl. Cross-compiled with `cargo-zigbuild`.
 - **One `.deb` / `.rpm` with both binaries.** Built on Ubuntu 24.04, the
   oldest base with GTK ≥ 4.10 (`gtk::AlertDialog`). Dependencies are
-  declared explicitly (`mpv`, `libgtk-4-1 (>= 4.10)` / `gtk4 >= 4.10`).
+  declared explicitly (`mpv`, `libmpv2`, `libgtk-4-1 (>= 4.10)` /
+  `mpv`, `mpv-libs`, `gtk4 >= 4.10`). The GUI links libmpv for its
+  embedded video ([ADR 0007](decisions/0007-embedded-video.md)).
 - **No Flatpak or AppImage for now.** Flatpak would need mpv built inside
   the sandbox and remapped config/theme paths; not worth it yet. Native
   packages cover the main distros.

@@ -48,7 +48,7 @@ its own PR with tests and doc updates.
 - [x] Account switcher in the header bar
 - [x] Accounts window: add, edit, test login, remove, make default
 - [ ] Account management in the TUI
-- [x] Optional embedded video (libmpv render API, feature `embedded`, ADR 0007)
+- [x] Embedded video (libmpv render API, feature `embedded`, on by default, ADR 0007)
 - [x] Embedded video: own control bar, tracks, fullscreen, open in mpv window
 - [ ] Embedded video: mpv keyboard shortcuts
 

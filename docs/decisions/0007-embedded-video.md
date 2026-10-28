@@ -1,4 +1,4 @@
-# 0007. Optional embedded video via libmpv, still controlled over IPC
+# 0007. Embedded video via libmpv, still controlled over IPC
 
 - Status: Accepted
 - Date: 2026-10-28
@@ -14,10 +14,11 @@ the workspace forbids.
 
 ## Decision
 
-- A cargo feature `embedded` in `tuner-gtk` (off by default). With it, the
+- A cargo feature `embedded` in `tuner-gtk`, on by default. With it, the
   GUI creates libmpv in-process (`vo=libmpv`) and draws it in a `GLArea`
-  above the channel list. If libmpv or OpenGL fails, the GUI falls back to
-  the external mpv window.
+  beside the channel list. If libmpv or OpenGL fails, the GUI falls back to
+  the external mpv window; `--no-default-features` builds a GUI that
+  always uses it.
 - libmpv's own IPC server (`input-ipc-server`) is switched on, and the
   embedded player talks to it through the same `tuner_mpv::Mpv` as the
   external one (`Mpv::connect`). Load tracking, failure reasons and stream
@@ -35,12 +36,14 @@ the workspace forbids.
 
 ## Consequences
 
-- Default builds, packages and the TUI are unchanged and need neither
-  libmpv nor libEGL.
-- Building with `--features embedded` needs `libmpv-dev` (Arch: `mpv`) and
-  libEGL. CI runs clippy on that build so the module does not rot.
-- A crash in libmpv takes the GUI down with it. The external window stays
-  the default for that reason.
+- Building `tuner-gtk` needs `libmpv-dev` (Arch: `mpv`) and libEGL, and
+  the .deb/.rpm declare `libmpv2` / `mpv-libs`. Every distro's mpv package
+  already pulls those in. The TUI is unchanged and needs neither. CI also
+  lints the `--no-default-features` build so the external-only GUI keeps
+  building.
+- A crash in libmpv takes the GUI down with it. Embedding is still the
+  default, since the window is what GUI users expect; mpv's own window is
+  one click away ("Open in mpv window").
 - tuner draws its own control bar (play/pause, seek, volume, subtitle and
   audio tracks, fullscreen, "Open in mpv window") instead of mpv's OSC, so
   it follows the user's theme. It sends mpv input commands and follows

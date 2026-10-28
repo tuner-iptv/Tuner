@@ -63,8 +63,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.build_ref || github.sha }}
-      - name: Install GTK4
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgtk-4-dev
+      - name: Install GTK4 and libmpv
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgtk-4-dev libmpv-dev
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@v2

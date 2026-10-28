@@ -44,7 +44,7 @@ instead of leaving an idle player behind.
 
 ## Embedded mpv
 
-The GUI's `embedded` feature runs libmpv in-process with the same
+The GUI's `embedded` feature (on by default) runs libmpv in-process with the same
 `input-ipc-server` option, and reaches it with `Mpv::connect(socket)`
 instead of `spawn`. Such an `Mpv` owns no process: `is_running` is always
 true, `force-window` is left alone, and dropping it sends `stop` (not

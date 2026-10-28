@@ -5,13 +5,13 @@ GitHub Actions workflows live in `.github/workflows/`. They use
 
 ## `ci.yml`: every PR and push to `main`
 
-One job on `ubuntu-latest` (installs `libgtk-4-dev` first):
+One job on `ubuntu-latest` (installs `libgtk-4-dev libmpv-dev` first):
 
 1. `cargo fmt --all --check`
 2. `cargo clippy --workspace --all-targets --locked -- -D warnings`
 3. `cargo test --workspace --locked`
-4. Installs `libmpv-dev`, then `cargo clippy -p tuner-gtk --features embedded
-   --all-targets --locked -- -D warnings` and its tests, so the embedded-video code
+4. `cargo clippy -p tuner-gtk --no-default-features --all-targets --locked --
+   -D warnings`, so the GUI without embedded video
    ([ADR 0007](decisions/0007-embedded-video.md)) keeps building.
 5. An MSRV job builds with the `rust-version` from `Cargo.toml` (1.92, set by gtk-rs).
 

@@ -6,8 +6,8 @@
   (Arch: `sudo pacman -S rustup && rustup default stable`)
 - `clippy` and `rustfmt` components (`rustup component add clippy rustfmt`)
 - `mpv` for running the app (not needed for tests)
-- GTK4 development files for `tuner-gtk` (Arch: `gtk4`; Ubuntu:
-  `libgtk-4-dev`; Fedora: `gtk4-devel`)
+- GTK4 and libmpv development files for `tuner-gtk` (Arch: `gtk4 mpv`;
+  Ubuntu: `libgtk-4-dev libmpv-dev`; Fedora: `gtk4-devel mpv-devel`)
 
 ## Commands
 
@@ -21,7 +21,7 @@
 | Lint (as CI does)   | `cargo clippy --workspace --all-targets -- -D warnings`   |
 | Run (TUI)           | `cargo run -p tuner -- <source name, path or URL>`        |
 | Run (GUI)           | `cargo run -p tuner-gtk -- <source name, path or URL>`    |
-| GUI, embedded video | `cargo run -p tuner-gtk --features embedded -- <source>` (needs libmpv) |
+| GUI, mpv window only | `cargo run -p tuner-gtk --no-default-features -- <source>` (no libmpv needed) |
 | Run with mpv flags  | `cargo run -p tuner -- list.m3u --mpv-arg=--hwdec=auto`   |
 | Release build       | `cargo build --release` → `target/release/tuner`          |
 

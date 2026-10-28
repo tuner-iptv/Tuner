@@ -19,8 +19,8 @@ It takes the same arguments and the same `config.toml` as the TUI
 ([sources.md](sources.md)), and enforces the same
 [stream limits](stream-limits.md) through the shared `tuner_app::Controller`.
 
-Needs GTK ≥ 4.10 at runtime (`pacman -S gtk4`; Ubuntu: `libgtk-4-1`) and
-`libgtk-4-dev` to build.
+Needs GTK ≥ 4.10 and libmpv at runtime (`pacman -S gtk4 mpv`; Ubuntu:
+`libgtk-4-1 libmpv2`) and `libgtk-4-dev libmpv-dev` to build.
 
 ## Layout
 
@@ -229,8 +229,8 @@ without ever blocking the UI.
 
 ## Embedded video
 
-Built with `cargo build -p tuner-gtk --features embedded` (needs libmpv and
-libEGL; Debian `libmpv-dev`, Arch `mpv`), the video plays inside the window,
+By default (cargo feature `embedded`, needs libmpv and libEGL), the video
+plays inside the window,
 right of the channel list, in a pane that shows only while something plays
 and takes the window's extra width. Drag the divider to resize it. The
 details panel closes while the video is open, to give it room (`Ctrl+I`
@@ -290,7 +290,7 @@ again after libmpv reads `mpv.conf`, so lines like `vo=gpu-next` there
 don't break the embedded view. If something makes the embedded mpv quit
 (MPRIS Quit, a script), tuner plays in an mpv window from then on.
 
-Without the feature, or if libmpv or OpenGL
+Built with `--no-default-features`, or if libmpv or OpenGL
 fails to start (the reason goes to stderr), mpv opens its own window as
 usual.
 

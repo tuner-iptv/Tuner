@@ -24,7 +24,9 @@ ureq.workspace = true
 
 [features]
 # Draw video inside the window with libmpv (needs libmpv and libEGL to build
-# and run). Off by default; see docs/decisions/0007-embedded-video.md.
+# and run). On by default; `--no-default-features` builds a GUI that always
+# plays in mpv's own window. See docs/decisions/0007-embedded-video.md.
+default = ["embedded"]
 embedded = ["dep:serde_json"]
 
 # The workspace forbids unsafe; here it is denied so that the one libmpv
@@ -50,7 +52,7 @@ settings, and stream-limit checks."""
 section = "video"
 license-file = ["../../LICENSE", "0"]
 priority = "optional"
-depends = "mpv, libgtk-4-1 (>= 4.10), libc6 (>= 2.39)"
+depends = "mpv, libmpv2, libgtk-4-1 (>= 4.10), libc6 (>= 2.39)"
 assets = [
     ["target/release/tuner", "usr/bin/", "755"],
     ["target/release/tuner-gtk", "usr/bin/", "755"],
@@ -77,4 +79,5 @@ assets = [
 
 [package.metadata.generate-rpm.requires]
 mpv = "*"
+mpv-libs = "*"
 gtk4 = ">= 4.10"

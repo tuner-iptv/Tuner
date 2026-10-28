@@ -117,8 +117,8 @@ yourself): download `tuner-tui-v…-<arch>-linux-musl.tar.gz` from the
 copy the `tuner` binary onto your `PATH`.
 
 **From source:** install [Rust 1.92+](https://rustup.rs), mpv, and the GTK 4
-development files (`libgtk-4-dev` on Ubuntu, `gtk4-devel` on Fedora, `gtk4`
-on Arch), then:
+and libmpv development files (`libgtk-4-dev libmpv-dev` on Ubuntu,
+`gtk4-devel mpv-devel` on Fedora, `gtk4 mpv` on Arch), then:
 
 ```sh
 git clone https://github.com/tuner-iptv/Tuner.git tuner
