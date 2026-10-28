@@ -141,7 +141,8 @@ unsafe extern "C" {
 
 /// The libmpv instance, shared by the video pane and every player made for
 /// it; destroyed with the last of them.
-struct Core(*mut MpvHandle);
+/// The second field is libmpv's IPC socket, removed with the core.
+struct Core(*mut MpvHandle, PathBuf);
 
 // SAFETY: the mpv client API is thread-safe; only the render context (kept
 // on the GTK thread in `video_area`) is not, and `mpv_wait_event` is only
@@ -178,6 +179,8 @@ impl Drop for Core {
         // SAFETY: created by `mpv_create`; the render context, which must go
         // first, is freed on unrealize, before the area drops its `Arc`.
         unsafe { mpv_terminate_destroy(self.0) }
+        // libmpv leaves its IPC socket file behind.
+        let _ = std::fs::remove_file(&self.1);
     }
 }
 
@@ -209,9 +212,9 @@ pub fn start(
     if handle.is_null() {
         return Err("libmpv could not be created".into());
     }
-    let core = Arc::new(Core(handle));
-
     let socket = tuner_mpv::socket_path();
+    let core = Arc::new(Core(handle, socket.clone()));
+
     let ours = [
         ("vo", "libmpv"),
         ("idle", "yes"),
@@ -1260,7 +1263,7 @@ mod tests {
         // An uninitialized handle stands in for a core that quit: nothing
         // listens on the socket.
         // SAFETY: plain constructor; `Core`'s drop destroys it.
-        let core = Arc::new(Core(unsafe { mpv_create() }));
+        let core = Arc::new(Core(unsafe { mpv_create() }, PathBuf::new()));
         let detached = Arc::new(AtomicBool::new(false));
         let mut player = EmbeddedPlayer {
             core,
