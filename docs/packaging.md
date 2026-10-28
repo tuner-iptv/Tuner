@@ -30,7 +30,7 @@ The commands are `tuner` and `tuner-gtk`.
   oldest base with GTK ≥ 4.10 (`gtk::AlertDialog`). Dependencies are
   declared explicitly (`mpv`, `libmpv2`, `libgtk-4-1 (>= 4.10)` /
   `mpv`, `mpv-libs`, `gtk4 >= 4.10`). The GUI links libmpv for its
-  embedded video ([ADR 0007](decisions/0007-embedded-video.md)).
+  embedded video ([ADR 0008](decisions/0008-embedded-video.md)).
 - **No Flatpak or AppImage for now.** Flatpak would need mpv built inside
   the sandbox and remapped config/theme paths; not worth it yet. Native
   packages cover the main distros.

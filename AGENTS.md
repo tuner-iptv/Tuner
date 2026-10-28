@@ -62,7 +62,7 @@ before you say a change is done.
 2. **Never decode video in-process.** Playback goes through mpv. The GUI's
    `embedded` feature (on by default) runs libmpv in-process; its `unsafe` stays in
    `tuner-gtk/src/embed.rs`. See [ADR 0001](docs/decisions/0001-external-mpv-over-ipc.md)
-   and [ADR 0007](docs/decisions/0007-embedded-video.md).
+   and [ADR 0008](docs/decisions/0008-embedded-video.md).
 3. **Be lenient with playlists.** Real IPTV input is malformed. Prefer
    recovering over erroring, and add a test case for every new quirk.
 4. **Test without mpv.** Unit tests must not need an mpv binary, network or a

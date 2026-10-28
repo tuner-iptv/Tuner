@@ -38,6 +38,7 @@ A missing file is fine; unknown top-level keys are an error, to catch typos.
 
 ```toml
 # theme = "catppuccin-mocha"   # GUI colour scheme; default: theme.toml (see gui.md#theming)
+# check_updates = false        # skip the daily GitHub release check (see decisions/0007)
 
 [mpv]
 # program = "mpv"

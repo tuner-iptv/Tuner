@@ -49,7 +49,7 @@ The GUI's `embedded` feature (on by default) runs libmpv in-process with the sam
 instead of `spawn`. Such an `Mpv` owns no process: `is_running` is always
 true, `force-window` is left alone, and dropping it sends `stop` (not
 `quit`) so the stream ends but mpv stays. See
-[ADR 0007](decisions/0007-embedded-video.md).
+[ADR 0008](decisions/0008-embedded-video.md).
 
 `Mpv::load_from(url, start)` (and `Player::play_from`) loads with
 `["loadfile", url, "replace", -1, "start=<s>"]`, the per-file options of

@@ -250,6 +250,7 @@ button.destructive-action {{ background: {error}; color: {bg}; border-color: {er
 .video-tracks .track-list > row.current .track-name {{ color: {accent}; font-weight: 600; }}
 .video-tracks .track-list > row.current image {{ color: {accent}; }}
 .track-detail {{ font-size: 0.85em; }}
+.statusbar .update {{ color: {accent}; }}
 .warning {{ color: {warning}; }}
 .error {{ color: {error}; }}
 .dim-label {{ color: mix({fg}, {bg}, 0.15); }}

@@ -1,4 +1,4 @@
-//! Embedded video (cargo feature `embedded`, ADR 0007): libmpv runs
+//! Embedded video (cargo feature `embedded`, ADR 0008): libmpv runs
 //! in-process and draws into a `gtk::GLArea` through its render API, with
 //! tuner's own control bar over it.
 //!

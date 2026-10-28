@@ -46,7 +46,7 @@ Needs GTK ≥ 4.10 and libmpv at runtime (`pacman -S gtk4 mpv`; Ubuntu:
 | Channel cards | Use the **List view** / **Cards view** buttons beside the channel count. Cards show larger logos, channel names, group/replay metadata and playing/paused indicators; columns reflow with the available width. Both views share the same selection, search, groups and playback controller. Switching views never restarts playback. The grid is virtualised (`GridView`). |
 | Details     | "Selected channel" heading, larger logo, title and subtitle, prominent **Play channel** button (**Play movie** / **Play episode** / **Show episodes** for movies, episodes and series), then the same fields as the TUI's `i` pane (category, year, rating and plot for a series). The stream URL (it embeds the password) is hidden unless you press the **Show stream URL** toggle. |
 | Player bar  | Slides up while something plays: framed logo, name, `#number · group · format`, **Playing in mpv** / **Paused** state, round **pause/resume** and **stop** buttons. Both the icon and state follow pauses in mpv's own window (checked every second). |
-| Status bar  | Last action · source summary and stream limit. |
+| Status bar  | Last action · update notice when a newer release exists, with a close button (ADR 0007) · source summary and stream limit. |
 
 Logos are fixed-size icons (120 px in the details panel, 36 px in the list,
 80 px in cards, 40 px in the player bar), so large logos or long names never
@@ -299,7 +299,7 @@ libmpv reads your `mpv.conf`, and the config's `[mpv] args` and
 goes over mpv's JSON IPC (libmpv's own IPC server), so pause, stop, stream
 limits and load errors behave as with the external window. The C calls live
 in `src/embed.rs`, the crate's only `unsafe` code; see
-[ADR 0007](decisions/0007-embedded-video.md).
+[ADR 0008](decisions/0008-embedded-video.md).
 
 ## Desktop entry
 

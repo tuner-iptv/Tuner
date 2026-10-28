@@ -171,6 +171,11 @@ pub(crate) struct Widgets {
     player: PlayerBar,
     details: Details,
     status: gtk::Label,
+    /// "Newer release available" notice and its close button; hidden until
+    /// the check finds one.
+    update: gtk::Box,
+    update_text: gtk::Label,
+    update_close: gtk::Button,
     summary: gtk::Label,
     /// The embedded video, shown while something plays in it; `None` when
     /// mpv always plays in its own window.
@@ -292,6 +297,7 @@ pub fn build(app: &gtk::Application, start: Start) {
     let theme = theme::install(&display, start.theme, theme_file);
     let (video, new_player) = players(start.mpv);
 
+    let check_updates = start.config.check_updates.unwrap_or(true);
     let s: S = Rc::new(Shared {
         w: build_widgets(app, video),
         live: RefCell::default(),
@@ -328,6 +334,25 @@ pub fn build(app: &gtk::Application, start: Start) {
     });
     connect(&s);
     s.w.window.present();
+    if check_updates {
+        let w = (
+            s.w.update.clone(),
+            s.w.update_text.clone(),
+            s.w.update_close.clone(),
+        );
+        glib::spawn_future_local(async move {
+            let (bar, text, close) = w;
+            if let Ok(Some(update)) = gio::spawn_blocking(tuner_app::update::check).await {
+                text.set_text(&update.to_string());
+                text.set_tooltip_text(Some(&update.to_string()));
+                bar.set_visible(true);
+                close.connect_clicked(move |_| {
+                    update.dismiss();
+                    bar.set_visible(false);
+                });
+            }
+        });
+    }
     match start.initial {
         Some((name, resolved)) => open(&s, name, resolved),
         None => show_empty(&s),
@@ -667,7 +692,24 @@ fn build_widgets(app: &gtk::Application, video: Option<Video>) -> Widgets {
         .build();
     let bar = gtk::Box::new(gtk::Orientation::Horizontal, 16);
     bar.add_css_class("statusbar");
+    // Selectable so the install command can be copied.
+    let update_text = gtk::Label::builder()
+        .selectable(true)
+        .ellipsize(pango::EllipsizeMode::End)
+        .css_classes(["update"])
+        .build();
+    let update_close = gtk::Button::builder()
+        .icon_name("window-close-symbolic")
+        .tooltip_text("Dismiss until the next release")
+        .css_classes(["flat"])
+        .valign(gtk::Align::Center)
+        .build();
+    let update = gtk::Box::new(gtk::Orientation::Horizontal, 4);
+    update.set_visible(false);
+    update.append(&update_text);
+    update.append(&update_close);
     bar.append(&status);
+    bar.append(&update);
     bar.append(&summary);
 
     let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
@@ -720,6 +762,9 @@ fn build_widgets(app: &gtk::Application, video: Option<Video>) -> Widgets {
         player,
         details,
         status,
+        update,
+        update_text,
+        update_close,
         summary,
         video,
     }

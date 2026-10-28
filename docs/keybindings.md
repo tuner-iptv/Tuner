@@ -27,6 +27,7 @@ three in sync, and the browser demo too (`site/assets/demo.js`, see
 | `a`                    | Open the account switcher                       |
 | `Space`                | Toggle pause in mpv                             |
 | `s`                    | Stop: quit mpv (closes its window), free slot   |
+| `x`                    | Dismiss the update notice until the next release |
 | `q` / `Ctrl-C`         | Quit (also closes mpv)                          |
 
 Moving in the groups pane filters the channel list live. "All" is the first

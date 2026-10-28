@@ -25,7 +25,7 @@ ureq.workspace = true
 [features]
 # Draw video inside the window with libmpv (needs libmpv and libEGL to build
 # and run). On by default; `--no-default-features` builds a GUI that always
-# plays in mpv's own window. See docs/decisions/0007-embedded-video.md.
+# plays in mpv's own window. See docs/decisions/0008-embedded-video.md.
 default = ["embedded"]
 embedded = ["dep:serde_json"]
 

@@ -7,6 +7,7 @@ pub mod config;
 pub mod guard;
 pub mod playback;
 pub mod source;
+pub mod update;
 
 pub use batches::Flow;
 pub use config::{Config, Resolved};

@@ -1,4 +1,4 @@
-# 0007. Embedded video via libmpv, still controlled over IPC
+# 0008. Embedded video via libmpv, still controlled over IPC
 
 - Status: Accepted
 - Date: 2026-10-28
