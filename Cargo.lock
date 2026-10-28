@@ -1479,7 +1479,7 @@ checksum = "06bdbd8cfc056b8d2e2e85f29b56a3bdbecb527cef81eb39e3e7b98af4652770"
 
 [[package]]
 name = "tuner"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "anyhow",
  "clap",
@@ -1492,7 +1492,7 @@ dependencies = [
 
 [[package]]
 name = "tuner-app"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "anyhow",
  "serde",
@@ -1505,7 +1505,7 @@ dependencies = [
 
 [[package]]
 name = "tuner-core"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "serde_json",
  "thiserror",
@@ -1513,7 +1513,7 @@ dependencies = [
 
 [[package]]
 name = "tuner-gtk"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "anyhow",
  "clap",
@@ -1529,7 +1529,7 @@ dependencies = [
 
 [[package]]
 name = "tuner-mpv"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "serde_json",
  "thiserror",
