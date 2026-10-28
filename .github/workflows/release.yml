@@ -120,3 +120,31 @@ jobs:
             tuner-*.tar.gz
             tuner-*.tar.gz.sha256
             artifacts/*
+
+  # Point the in-repo tuner-iptv-bin PKGBUILD (the README's Arch install) at this release.
+  pkgbuild:
+    needs: [prepare, release]
+    runs-on: ubuntu-24.04
+    env:
+      RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - run: |
+          set -euo pipefail
+          new=${RELEASE_TAG#v}
+          cur=$(grep -m1 '^pkgver=' packaging/aur/tuner-iptv-bin/PKGBUILD | cut -d= -f2)
+          # Never downgrade, e.g. when an older tag is pushed again.
+          if [ "$(printf '%s\n' "$cur" "$new" | sort -V | tail -1)" != "$new" ]; then
+            echo "PKGBUILD is at $cur, newer than $new; skipping"
+            exit 0
+          fi
+          packaging/aur/bump-bin.sh "$new"
+          git add packaging/aur/tuner-iptv-bin
+          if git diff --cached --quiet; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m "chore(aur): update tuner-iptv-bin to $new"
+          git push origin HEAD:refs/heads/main

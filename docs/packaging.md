@@ -62,12 +62,12 @@ Two packages in `packaging/aur/`:
 Both conflict with the AUR `tuner` radio player, which also installs
 `/usr/bin/tuner`.
 
-Updating for a release:
+Updating for a release: the Release workflow's `pkgbuild` job does this and
+commits the result to `main`. By hand:
 
 ```sh
-packaging/aur/bump-bin.sh X.Y.Z  # sets pkgver, pkgrel=1 and the checksum (needs gh)
+packaging/aur/bump-bin.sh X.Y.Z  # sets pkgver, pkgrel=1, the checksum and .SRCINFO (needs gh)
 cd packaging/aur/tuner-iptv-bin
-makepkg --printsrcinfo > .SRCINFO
 makepkg -f                       # test build
 ```
 

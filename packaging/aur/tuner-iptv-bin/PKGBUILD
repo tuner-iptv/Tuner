@@ -5,7 +5,7 @@
 # See docs/packaging.md.
 
 pkgname=tuner-iptv-bin
-pkgver=0.1.0
+pkgver=0.1.1
 pkgrel=1
 pkgdesc='Lean, Linux-native IPTV player written in Rust (terminal and GTK4), powered by mpv'
 arch=('x86_64')
@@ -16,7 +16,7 @@ provides=('tuner-iptv')
 # The AUR radio player also installs /usr/bin/tuner.
 conflicts=('tuner-iptv' 'tuner-iptv-git' 'tuner' 'tuner-git')
 source=("$url/releases/download/v$pkgver/tuner-v$pkgver-x86_64-linux.tar.gz")
-sha256sums=('26af9012c9ba41b85ec4687b2dda48280094a98182e8c28d49a63474d3e8b813')
+sha256sums=('5b3240bea57366319f69e2c4664ee73a2ff83ee61d9db00429bbf2f968c1e451')
 options=('!debug')
 
 package() {

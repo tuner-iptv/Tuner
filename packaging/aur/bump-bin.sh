@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # Point tuner-iptv-bin at a published release: sets pkgver, resets pkgrel and
-# takes the checksum from the release's .sha256 asset.
+# takes the checksum from the release's .sha256 asset. Updates .SRCINFO too,
+# so it runs without makepkg (CI is Ubuntu).
 # Usage: packaging/aur/bump-bin.sh X.Y.Z
 set -euo pipefail
 
 version=${1:?usage: bump-bin.sh X.Y.Z}
 version=${version#v}
-pkgbuild="$(dirname "$0")/tuner-iptv-bin/PKGBUILD"
+dir="$(dirname "$0")/tuner-iptv-bin"
 asset="tuner-v$version-x86_64-linux.tar.gz"
 
 sum=$(gh release download "v$version" -R tuner-iptv/Tuner -p "$asset.sha256" -O - | awk '{print $1}')
@@ -16,5 +17,11 @@ sed -i \
   -e "s/^pkgver=.*/pkgver=$version/" \
   -e "s/^pkgrel=.*/pkgrel=1/" \
   -e "s/^sha256sums=.*/sha256sums=('$sum')/" \
-  "$pkgbuild"
+  "$dir/PKGBUILD"
+sed -i \
+  -e "s/^\tpkgver = .*/\tpkgver = $version/" \
+  -e "s/^\tpkgrel = .*/\tpkgrel = 1/" \
+  -e "s|^\tsource = .*|\tsource = https://github.com/tuner-iptv/Tuner/releases/download/v$version/$asset|" \
+  -e "s/^\tsha256sums = .*/\tsha256sums = $sum/" \
+  "$dir/.SRCINFO"
 echo "tuner-iptv-bin -> $version ($sum)"

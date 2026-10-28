@@ -47,8 +47,10 @@ packages; the release job attaches them too. That workflow also runs on PRs
 that touch `packaging/`, `crates/tuner-gtk/Cargo.toml` or the release
 workflows. Details: [packaging.md](packaging.md).
 
-After a release, run `packaging/aur/bump-bin.sh X.Y.Z`, commit the PKGBUILD, regenerate
-`.SRCINFO` and push it to the AUR (see [packaging.md](packaging.md#aur)).
+After publishing, the `pkgbuild` job runs `packaging/aur/bump-bin.sh` and
+commits the updated `tuner-iptv-bin` PKGBUILD and `.SRCINFO` to `main`, so
+the README's Arch install picks up the new release. It never downgrades.
+Pushing to the AUR itself stays manual (see [packaging.md](packaging.md#aur)).
 
 ## Cutting a release
 
