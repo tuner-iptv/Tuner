@@ -21,6 +21,10 @@ pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(60);
 /// Once the stream is open, how long it may receive nothing at all before
 /// its first frame.
 pub const NO_DATA_TIMEOUT: Duration = Duration::from_secs(8);
+/// [`NO_DATA_TIMEOUT`] for a stream started at a position (a movie resumed
+/// in another player): it seeks into the file before any frame, which
+/// takes longer on slow providers.
+pub const RESUME_NO_DATA_TIMEOUT: Duration = Duration::from_secs(25);
 
 /// The mpv property observed for data arriving. Its `total-bytes` grows as
 /// packets reach the demuxer cache, for plain HTTP and HLS alike
@@ -60,8 +64,9 @@ pub enum StreamEnd {
     Failed(String),
     /// The stream did not open within [`CONNECT_TIMEOUT`].
     TimedOut,
-    /// Opened, but no data arrived for [`NO_DATA_TIMEOUT`].
-    Stalled,
+    /// Opened, but no data arrived for this long ([`NO_DATA_TIMEOUT`], or
+    /// [`RESUME_NO_DATA_TIMEOUT`] when started at a position).
+    Stalled(Duration),
     /// It played and then ended (a live stream dropped, a movie finished).
     Ended,
     /// Stopped from inside mpv rather than by tuner (its keys or on-screen
@@ -78,10 +83,10 @@ impl fmt::Display for StreamEnd {
                 "the stream did not open within {} s",
                 CONNECT_TIMEOUT.as_secs()
             ),
-            StreamEnd::Stalled => write!(
+            StreamEnd::Stalled(after) => write!(
                 f,
                 "the stream opened but sent no data for {} s",
-                NO_DATA_TIMEOUT.as_secs()
+                after.as_secs()
             ),
             StreamEnd::Ended => write!(f, "the stream ended"),
             StreamEnd::Stopped => write!(f, "playback was stopped in mpv"),
@@ -98,6 +103,8 @@ struct Load {
     began: Instant,
     /// When data last arrived (buffering).
     last_data: Instant,
+    /// How long buffering may go without data.
+    no_data: Duration,
     bytes: Option<u64>,
     buffered: Option<Duration>,
     problem: Option<String>,
@@ -118,10 +125,19 @@ impl LoadWatch {
             stage: LoadStage::Connecting,
             began: now,
             last_data: now,
+            no_data: NO_DATA_TIMEOUT,
             bytes: None,
             buffered: None,
             problem: None,
         });
+    }
+
+    /// The stream just begun starts at a position: allow
+    /// [`RESUME_NO_DATA_TIMEOUT`] for its seek.
+    pub fn resuming(&mut self) {
+        if let Some(load) = &mut self.load {
+            load.no_data = RESUME_NO_DATA_TIMEOUT;
+        }
     }
 
     pub fn clear(&mut self) {
@@ -250,9 +266,9 @@ impl LoadWatch {
                 StreamEnd::TimedOut
             }
             LoadStage::Buffering
-                if now.saturating_duration_since(load.last_data) >= NO_DATA_TIMEOUT =>
+                if now.saturating_duration_since(load.last_data) >= load.no_data =>
             {
-                StreamEnd::Stalled
+                StreamEnd::Stalled(load.no_data)
             }
             _ => return None,
         };
@@ -413,7 +429,22 @@ mod tests {
         feed(&mut w, open, &opened(1));
         assert_eq!(w.stage(), Some(LoadStage::Buffering));
         assert_eq!(w.check(open + NO_DATA_TIMEOUT / 2), None);
-        assert_eq!(w.check(open + NO_DATA_TIMEOUT), Some(StreamEnd::Stalled));
+        assert_eq!(
+            w.check(open + NO_DATA_TIMEOUT),
+            Some(StreamEnd::Stalled(NO_DATA_TIMEOUT))
+        );
+    }
+
+    #[test]
+    fn a_resumed_stream_gets_longer_to_seek() {
+        let (mut w, t) = begun(Some(1));
+        w.resuming();
+        feed(&mut w, t, &opened(1));
+        assert_eq!(w.check(t + NO_DATA_TIMEOUT * 2), None);
+        assert_eq!(
+            w.check(t + RESUME_NO_DATA_TIMEOUT),
+            Some(StreamEnd::Stalled(RESUME_NO_DATA_TIMEOUT))
+        );
     }
 
     #[test]
@@ -430,7 +461,10 @@ mod tests {
         assert_eq!(w.check(last + NO_DATA_TIMEOUT / 2), None);
         // The same numbers again are not new data.
         feed(&mut w, last + Duration::from_secs(1), &[cache(10_000, 1.0)]);
-        assert_eq!(w.check(last + NO_DATA_TIMEOUT), Some(StreamEnd::Stalled));
+        assert_eq!(
+            w.check(last + NO_DATA_TIMEOUT),
+            Some(StreamEnd::Stalled(NO_DATA_TIMEOUT))
+        );
     }
 
     #[test]

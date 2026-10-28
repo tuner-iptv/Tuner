@@ -10,7 +10,10 @@ One job on `ubuntu-latest` (installs `libgtk-4-dev` first):
 1. `cargo fmt --all --check`
 2. `cargo clippy --workspace --all-targets --locked -- -D warnings`
 3. `cargo test --workspace --locked`
-4. An MSRV job builds with the `rust-version` from `Cargo.toml` (1.92, set by gtk-rs).
+4. Installs `libmpv-dev`, then `cargo clippy -p tuner-gtk --features embedded
+   --all-targets --locked -- -D warnings` and its tests, so the embedded-video code
+   ([ADR 0007](decisions/0007-embedded-video.md)) keeps building.
+5. An MSRV job builds with the `rust-version` from `Cargo.toml` (1.92, set by gtk-rs).
 
 Superseded runs on the same branch are cancelled. `Cargo.lock` is committed
 and `--locked` makes CI fail if it is out of date. Run `cargo build` and commit

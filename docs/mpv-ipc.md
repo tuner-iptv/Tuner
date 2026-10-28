@@ -42,6 +42,22 @@ once. `toggle_pause` is a no-op when mpv is not running. `shutdown` quits
 mpv; the front-ends' **Stop** uses it, so stopping closes the mpv window
 instead of leaving an idle player behind.
 
+## Embedded mpv
+
+The GUI's `embedded` feature runs libmpv in-process with the same
+`input-ipc-server` option, and reaches it with `Mpv::connect(socket)`
+instead of `spawn`. Such an `Mpv` owns no process: `is_running` is always
+true, `force-window` is left alone, and dropping it sends `stop` (not
+`quit`) so the stream ends but mpv stays. See
+[ADR 0007](decisions/0007-embedded-video.md).
+
+`Mpv::load_from(url, start)` (and `Player::play_from`) loads with
+`["loadfile", url, "replace", -1, "start=<s>"]`, the per-file options of
+mpv 0.38+. Older mpv rejects that; tuner then loads plainly from the start.
+`Mpv::resume_position` reads `time-pos`, only when `duration` is known (not
+for live channels). The GUI uses both to continue a movie in mpv's own
+window.
+
 ## Protocol
 
 Newline-delimited JSON over the Unix socket
@@ -85,7 +101,7 @@ stages, each with its own failure signal instead of one fixed timeout:
 | Stage        | Entered on                        | Fails when                                                    |
 | ------------ | --------------------------------- | ------------------------------------------------------------- |
 | `Connecting` | `loadfile` accepted               | `end-file` error (refused, 404, mpv's 10 s network timeout…); last-resort `CONNECT_TIMEOUT` (60 s) |
-| `Buffering`  | `file-loaded` (stream opened)     | `end-file` error, or **no new data** in the demuxer cache for `NO_DATA_TIMEOUT` (8 s) |
+| `Buffering`  | `file-loaded` (stream opened)     | `end-file` error, or **no new data** in the demuxer cache for `NO_DATA_TIMEOUT` (8 s; `RESUME_NO_DATA_TIMEOUT`, 25 s, for a movie resumed at a position, which seeks first) |
 | `Playing`    | `playback-restart` (first frame)  | not watched; `end-file` reports `Ended` (stalls are left to mpv) |
 
 - Our file is the `playlist_entry_id` from the `loadfile` reply (mpv 0.38+),

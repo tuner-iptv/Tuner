@@ -18,11 +18,22 @@ anyhow.workspace = true
 clap.workspace = true
 gtk.workspace = true
 signal-hook.workspace = true
+serde_json = { workspace = true, optional = true }
 toml.workspace = true
 ureq.workspace = true
 
-[lints]
-workspace = true
+[features]
+# Draw video inside the window with libmpv (needs libmpv and libEGL to build
+# and run). Off by default; see docs/decisions/0007-embedded-video.md.
+embedded = ["dep:serde_json"]
+
+# The workspace forbids unsafe; here it is denied so that the one libmpv
+# module (src/embed.rs) can allow it.
+[lints.rust]
+unsafe_code = "deny"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
 
 # Native packages for Debian/Ubuntu and Fedora. One package,
 # "tuner-iptv", ships both front-ends. Built by packaging/build-packages.sh;

@@ -21,6 +21,7 @@
 | Lint (as CI does)   | `cargo clippy --workspace --all-targets -- -D warnings`   |
 | Run (TUI)           | `cargo run -p tuner -- <source name, path or URL>`        |
 | Run (GUI)           | `cargo run -p tuner-gtk -- <source name, path or URL>`    |
+| GUI, embedded video | `cargo run -p tuner-gtk --features embedded -- <source>` (needs libmpv) |
 | Run with mpv flags  | `cargo run -p tuner -- list.m3u --mpv-arg=--hwdec=auto`   |
 | Release build       | `cargo build --release` → `target/release/tuner`          |
 

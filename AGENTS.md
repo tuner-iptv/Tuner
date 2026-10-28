@@ -59,8 +59,10 @@ before you say a change is done.
    logic (config, sources, stream limits, the play/stop `Controller`) and has
    no UI code. Front-ends (`tuner`, `tuner-gtk`) only render and route input;
    behaviour that both need belongs in `tuner-app`.
-2. **Never decode video in-process.** Playback goes through mpv. Embedding is
-   a future, separate decision; see [ADR 0001](docs/decisions/0001-external-mpv-over-ipc.md).
+2. **Never decode video in-process.** Playback goes through mpv. The GUI's
+   opt-in `embedded` feature runs libmpv in-process; its `unsafe` stays in
+   `tuner-gtk/src/embed.rs`. See [ADR 0001](docs/decisions/0001-external-mpv-over-ipc.md)
+   and [ADR 0007](docs/decisions/0007-embedded-video.md).
 3. **Be lenient with playlists.** Real IPTV input is malformed. Prefer
    recovering over erroring, and add a test case for every new quirk.
 4. **Test without mpv.** Unit tests must not need an mpv binary, network or a
@@ -87,7 +89,6 @@ before you say a change is done.
 
 ## Out of scope right now
 
-EPG/XMLTV, Stalker portals, persistence (SQLite),
-embedded video in the GUI. They are planned; see [docs/roadmap.md](docs/roadmap.md).
+EPG/XMLTV, Stalker portals, persistence (SQLite). They are planned; see [docs/roadmap.md](docs/roadmap.md).
 Do not start them unless asked, but do not make choices that block them (e.g. keep
 `Channel::tvg_id`, which the EPG will join on).

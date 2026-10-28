@@ -227,6 +227,75 @@ without waiting a full interval. The `Controller` lives in an
 `Arc<Mutex<…>>`; a 1 s timer uses `try_lock` to notice a closed mpv window
 without ever blocking the UI.
 
+## Embedded video
+
+Built with `cargo build -p tuner-gtk --features embedded` (needs libmpv and
+libEGL; Debian `libmpv-dev`, Arch `mpv`), the video plays inside the window,
+right of the channel list, in a pane that shows only while something plays
+and takes the window's extra width. Drag the divider to resize it. The
+details panel closes while the video is open, to give it room (`Ctrl+I`
+still opens it), and comes back when the video closes.
+
+Moving the pointer over the video fades in tuner's control bar over a
+gradient (themed like the rest of the window): a slim seek bar across the
+top that thickens on hover, then playback, volume and time on the left and
+the view controls on the right. It fades out again after 2.5 s:
+
+| Control                  | mpv command                                  |
+| ------------------------ | -------------------------------------------- |
+| Play/pause               | `cycle pause`                                |
+| Back / forward 10 s      | `seek -10` / `seek 10`                       |
+| Seek bar (movies, episodes; hidden for live) | `seek <s> absolute`      |
+| Mute, volume (0–130)     | `cycle mute`, `set volume <n>`               |
+| Audio & subtitles        | `set aid <id>`, `set sid <id>` / `set sid no`, from `track-list` |
+| Stream info              | badge: `video-params/w`×`h`, `container-fps`, `video-bitrate` |
+| Statistics               | `script-binding stats/display-stats-toggle` (mpv's own overlay) |
+| Open in mpv window       | replays the stream in mpv's own window       |
+| Cinema mode              | tuner only: video fills the window           |
+| Fullscreen               | `cycle fullscreen`                           |
+
+**Audio & subtitles** opens one menu with the stream's audio tracks and
+subtitle tracks side by side. Each row shows the language by name
+(`tur` → Turkish) with the title, codec, channels and Default/Forced flags
+below it; the playing track is ticked. **Statistics** toggles mpv's stats
+overlay, exactly as `i` does in mpv (page 1; its other pages need mpv's
+number keys, which stay with tuner). **Stream info** (eye icon) instead
+keeps a small badge in the video's top-left corner, such as
+`1920×1080 · 25 fps · 4.2 Mb/s`, with the same values the stats overlay
+shows, updated live; it stays up while the control bar fades.
+
+The bar follows mpv's own state (observed properties), so a pause from the
+player bar or a media key shows on it too. Double-click toggles fullscreen
+and the wheel seeks (mpv's default mouse bindings).
+
+**Fullscreen** (button, double-click, `F11`): the window goes fullscreen
+showing only the video and its control bar. `Esc` or `F11` leaves it, and
+`Space` pauses while in it. Leaving fullscreen through the window manager
+works too.
+
+**Cinema mode** (like YouTube's theater mode) hides the sidebar, channel
+list, details panel, player bar and status bar so the video fills the
+window, keeping the header and the window size. `Esc` or the button leaves
+it, and it ends by itself when playback stops.
+
+**Open in mpv window** moves the playing stream to a separate mpv window:
+the embedded stream is stopped first, then the same URL replays in mpv (a
+movie or episode continues at the same position; it is fetched once more),
+through the controller like a channel switch (the stream slot is kept, and
+only one stream is ever open). The stream stays there while you zap; close
+the mpv window to bring the next stream back into tuner.
+
+Without the feature, or if libmpv or OpenGL
+fails to start (the reason goes to stderr), mpv opens its own window as
+usual.
+
+libmpv reads your `mpv.conf`, and the config's `[mpv] args` and
+`--mpv-arg` apply as `--key=value`, `--flag` or `--no-flag`. Control still
+goes over mpv's JSON IPC (libmpv's own IPC server), so pause, stop, stream
+limits and load errors behave as with the external window. The C calls live
+in `src/embed.rs`, the crate's only `unsafe` code; see
+[ADR 0007](decisions/0007-embedded-video.md).
+
 ## Desktop entry
 
 `packaging/tuner-gtk.desktop` makes Tuner show up in your desktop's app launcher:
@@ -249,6 +318,5 @@ It is planned with the EPG; see [roadmap.md](roadmap.md).
 
 - Remembering the scroll position when going back from a series.
 
-- Embedded video (optional libmpv render mode in this crate; needs its own
-  ADR first, see ADR 0006).
+- mpv's keyboard shortcuts in the embedded video (keys stay with tuner).
 - Favorites, EPG. See [roadmap.md](roadmap.md).

@@ -9,8 +9,10 @@ mod load;
 mod process;
 
 pub use ipc::Connection;
-pub use load::{CONNECT_TIMEOUT, LoadProgress, LoadStage, NO_DATA_TIMEOUT, StreamEnd};
-pub use process::{Mpv, MpvOptions, Player};
+pub use load::{
+    CONNECT_TIMEOUT, LoadProgress, LoadStage, NO_DATA_TIMEOUT, RESUME_NO_DATA_TIMEOUT, StreamEnd,
+};
+pub use process::{Mpv, MpvOptions, Player, socket_path};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

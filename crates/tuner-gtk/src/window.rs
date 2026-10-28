@@ -20,7 +20,8 @@ use gtk::prelude::*;
 use gtk::{gio, glib, pango};
 use tuner_app::config::SourceKind;
 use tuner_app::{
-    Catalog, Config, Controller, Flow, Request, Resolved, Source, StreamGuard, Tick, status_line,
+    Catalog, Config, Controller, Flow, Playback, Request, Resolved, Source, StreamGuard, Tick,
+    status_line,
 };
 use tuner_core::{Channel, Entry, Library, Series};
 use tuner_mpv::{LoadStage, MpvOptions, Player};
@@ -30,7 +31,22 @@ use crate::logos::{Logo, Logos};
 use crate::theme;
 use crate::themes;
 
-type Ctl = Arc<Mutex<Controller<Player, StreamGuard>>>;
+/// External mpv, or mpv embedded in the window (feature `embedded`).
+type AnyPlayer = Box<dyn Playback + Send>;
+
+/// The embedded video (feature `embedded`): its pane (video and control
+/// bar) and how a stream moves to mpv's own window.
+#[cfg_attr(not(feature = "embedded"), allow(dead_code))]
+pub(crate) struct Video {
+    pub(crate) widget: gtk::Widget,
+    /// "Open in mpv window" on the control bar.
+    pub(crate) detach: gtk::Button,
+    /// Set by the player while the stream plays in mpv's own window.
+    pub(crate) detached: Arc<AtomicBool>,
+    /// Asks the player to play the next stream in mpv's own window.
+    pub(crate) detach_next: Arc<AtomicBool>,
+}
+type Ctl = Arc<Mutex<Controller<AnyPlayer, StreamGuard>>>;
 
 /// How often to ask the provider whether the account is over its limit while
 /// something plays.
@@ -56,6 +72,8 @@ const GROUPS_MAX: i32 = 360;
 const DETAILS_MIN: i32 = 260;
 const DETAILS_MAX: i32 = 440;
 const BROWSER_MIN: i32 = 300;
+/// Width of the channel list beside the embedded video.
+const LIST_BESIDE_VIDEO: i32 = 360;
 const HANDLE_WIDTH: i32 = 6;
 
 /// Rows in the details grid. Each section fills as many as it has fields for
@@ -154,6 +172,9 @@ pub(crate) struct Widgets {
     details: Details,
     status: gtk::Label,
     summary: gtk::Label,
+    /// The embedded video, shown while something plays in it; `None` when
+    /// mpv always plays in its own window.
+    video: Option<Video>,
 }
 
 /// Bottom bar shown while something plays.
@@ -217,7 +238,8 @@ pub(crate) struct Shared {
     /// Config name of the open source; `None` for a command-line path/URL or
     /// when nothing is open.
     pub(crate) current: RefCell<Option<String>>,
-    mpv: MpvOptions,
+    /// Makes the player for each opened source.
+    new_player: Box<dyn Fn() -> AnyPlayer>,
     /// Bumped whenever the open source changes, so late results from a
     /// previous load are ignored.
     generation: Cell<u64>,
@@ -236,6 +258,9 @@ pub(crate) struct Shared {
     /// Load stage last put in the status line, to update it only on change.
     stage: Cell<Option<LoadStage>>,
     paused: Cell<bool>,
+    /// The details toggle as it was before the embedded video opened (which
+    /// closes the panel); restored when the video closes.
+    details_before_video: Cell<Option<bool>>,
     busy: Cell<bool>,
     groups_width: Cell<i32>,
     details_width: Cell<i32>,
@@ -265,9 +290,10 @@ pub fn build(app: &gtk::Application, start: Start) {
     let display = gtk::gdk::Display::default().expect("no display");
     let theme_file = start.config_path.as_deref().map(theme::file_beside);
     let theme = theme::install(&display, start.theme, theme_file);
+    let (video, new_player) = players(start.mpv);
 
     let s: S = Rc::new(Shared {
-        w: build_widgets(app),
+        w: build_widgets(app, video),
         live: RefCell::default(),
         movies: RefCell::default(),
         series: RefCell::default(),
@@ -282,7 +308,7 @@ pub fn build(app: &gtk::Application, start: Start) {
         config: RefCell::new(start.config),
         config_path: start.config_path,
         current: RefCell::new(None),
-        mpv: start.mpv,
+        new_player,
         generation: Cell::new(0),
         syncing: Cell::new(false),
         adhoc: RefCell::new(None),
@@ -291,6 +317,7 @@ pub fn build(app: &gtk::Application, start: Start) {
         now: RefCell::default(),
         stage: Cell::new(None),
         paused: Cell::new(false),
+        details_before_video: Cell::new(None),
         busy: Cell::new(false),
         groups_width: Cell::new(200),
         details_width: Cell::new(DETAILS_WIDTH),
@@ -307,7 +334,18 @@ pub fn build(app: &gtk::Application, start: Start) {
     }
 }
 
-fn build_widgets(app: &gtk::Application) -> Widgets {
+/// The embedded video and its players when built with `embedded` and
+/// libmpv starts; otherwise an external mpv per source.
+fn players(mpv: MpvOptions) -> (Option<Video>, Box<dyn Fn() -> AnyPlayer>) {
+    #[cfg(feature = "embedded")]
+    match crate::embed::start(&mpv) {
+        Ok((video, make)) => return (Some(video), Box::new(make)),
+        Err(e) => eprintln!("tuner-gtk: embedded video unavailable, using an mpv window: {e}"),
+    }
+    (None, Box::new(move || Box::new(Player::new(mpv.clone()))))
+}
+
+fn build_widgets(app: &gtk::Application, video: Option<Video>) -> Widgets {
     let window = gtk::ApplicationWindow::builder()
         .application(app)
         .title("Tuner")
@@ -587,7 +625,23 @@ fn build_widgets(app: &gtk::Application) -> Widgets {
     body.set_vexpand(true);
     body.append(&sidebar);
     body.append(&groups_handle);
-    body.append(&stack);
+    match &video {
+        // Channel list left of the video, which takes the window's extra
+        // width; the divider is draggable.
+        Some(video) => {
+            let center = gtk::Paned::builder()
+                .start_child(&stack)
+                .end_child(&video.widget)
+                .shrink_start_child(false)
+                .shrink_end_child(false)
+                .resize_start_child(false)
+                .position(LIST_BESIDE_VIDEO)
+                .hexpand(true)
+                .build();
+            body.append(&center);
+        }
+        None => body.append(&stack),
+    }
     body.append(&details_handle);
     body.append(&details.revealer);
     // Observe the available viewport rather than the children's requested
@@ -667,6 +721,7 @@ fn build_widgets(app: &gtk::Application) -> Widgets {
         details,
         status,
         summary,
+        video,
     }
 }
 
@@ -1462,6 +1517,14 @@ fn connect(s: &S) {
             stop(&s);
         }
     });
+    if let Some(video) = &w.video {
+        let weak = Rc::downgrade(s);
+        video.detach.connect_clicked(move |_| {
+            if let Some(s) = weak.upgrade() {
+                detach(&s);
+            }
+        });
+    }
 
     let weak = Rc::downgrade(s);
     w.details_toggle.connect_toggled(move |_| {
@@ -1812,7 +1875,6 @@ fn load(s: &S, resolved: Resolved) {
     s.w.window.set_title(Some(&format!("Tuner · {label}")));
     s.w.stack.set_visible_child_name("loading");
     let generation = s.generation.get();
-    let mpv = s.mpv.clone();
     let s = s.clone();
     glib::spawn_future_local(async move {
         let source = resolved.source.clone();
@@ -1834,7 +1896,7 @@ fn load(s: &S, resolved: Resolved) {
         let max_streams = resolved.max_streams.or(opened.max_connections).unwrap_or(1);
         let catalog = resolved.source.clone();
         let guard = StreamGuard::new(resolved.source.clone(), max_streams, resolved.limit_mode);
-        let controller = Controller::new(Player::new(mpv), guard);
+        let controller = Controller::new((s.new_player)(), guard);
         *s.controller.borrow_mut() = Some(Arc::new(Mutex::new(controller)));
 
         let plural = if max_streams == 1 {
@@ -2665,6 +2727,20 @@ fn set_playing(s: &S, channel: Option<Channel>) {
     // The new channel may be in another section, so re-mark bound rows.
     update_playing_markers(s);
 
+    if let Some(video) = &s.w.video {
+        let detached = video.detached.load(Ordering::Relaxed);
+        let show = channel.is_some() && !detached;
+        // The video gets the details panel's room while it plays (Ctrl+I
+        // still opens it); the panel comes back when the video closes.
+        if show && !video.widget.is_visible() {
+            s.details_before_video
+                .set(Some(s.w.details_toggle.is_active()));
+            s.w.details_toggle.set_active(false);
+        } else if !show && let Some(was) = s.details_before_video.take() {
+            s.w.details_toggle.set_active(was);
+        }
+        video.widget.set_visible(show);
+    }
     let bar = &s.w.player;
     match channel {
         Some(c) => {
@@ -2690,7 +2766,7 @@ fn set_playing(s: &S, channel: Option<Channel>) {
 /// check block). `None` if the worker panicked.
 async fn with_controller<T: Send + 'static>(
     ctl: &Ctl,
-    f: impl FnOnce(&mut Controller<Player, StreamGuard>) -> T + Send + 'static,
+    f: impl FnOnce(&mut Controller<AnyPlayer, StreamGuard>) -> T + Send + 'static,
 ) -> Option<T> {
     let ctl = ctl.clone();
     gio::spawn_blocking(move || f(&mut ctl.lock().unwrap_or_else(|e| e.into_inner())))
@@ -2792,6 +2868,17 @@ fn stop(s: &S) {
             },
         );
     });
+}
+
+/// Move the playing stream from the embedded video to mpv's own window. It
+/// replays through the controller like a channel switch, so the stream slot
+/// is kept and only one stream is ever open.
+fn detach(s: &S) {
+    let (Some(video), Some(channel)) = (&s.w.video, s.now.borrow().clone()) else {
+        return;
+    };
+    video.detach_next.store(true, Ordering::Relaxed);
+    play(s, channel);
 }
 
 fn toggle_pause(s: &S) {
