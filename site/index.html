@@ -4,10 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tuner: a lean IPTV player for Linux</title>
-  <meta name="description" content="Tuner is a lean, Linux-native IPTV player written in Rust. A keyboard-first terminal UI and a native GTK4 app, playing in mpv. Try it in your browser.">
+  <meta name="description" content="Tuner is a lean, Linux-native IPTV player written in Rust. A keyboard-first terminal UI and a native GTK4 app with mpv video built into the window. Try it in your browser.">
   <meta name="color-scheme" content="dark light">
   <meta property="og:title" content="Tuner: a lean IPTV player for Linux">
-  <meta property="og:description" content="Keyboard-first terminal UI and native GTK4 app for M3U and Xtream Codes, playing in mpv. Try the live demo in your browser.">
+  <meta property="og:description" content="Keyboard-first terminal UI and native GTK4 app for M3U and Xtream Codes, with mpv playing right in the window. Try the live demo in your browser.">
   <meta property="og:type" content="website">
   <meta property="og:image" content="assets/img/tuner-gtk-cards.png">
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
@@ -57,7 +57,7 @@
             <span class="dot"></span><span id="version-text">Open-source IPTV player</span>
           </a>
           <h1>Every channel,<br><span class="grad">one keystroke away.</span></h1>
-          <p class="lead">M3U and Xtream Codes in a terminal or GTK4 app. Playback in mpv.</p>
+          <p class="lead">M3U and Xtream Codes in a terminal or GTK4 app. Video plays in mpv, right inside the window.</p>
           <div class="cta">
             <a class="btn btn-primary btn-lg" href="#demo-section" data-try>▶ Try it in your browser</a>
             <a class="btn btn-ghost btn-lg" href="#install">Install</a>
@@ -65,7 +65,7 @@
           <ul class="stats" aria-label="At a glance">
             <li><b>Rust</b><span>no Electron</span></li>
             <li><b>2</b><span>interfaces</span></li>
-            <li><b>mpv</b><span>playback</span></li>
+            <li><b>mpv</b><span>built in</span></li>
             <li><b>GPL-3.0</b><span>license</span></li>
           </ul>
         </div>
@@ -104,25 +104,43 @@
       <div class="wrap">
         <div class="sec-head">
           <h2 id="feat-h">Built like a remote control, not a browser tab</h2>
-          <p class="sub">Tuner browses and controls. mpv plays.</p>
+          <p class="sub">Tuner browses and controls. mpv plays, right in the window.</p>
         </div>
 
         <div class="bento">
           <article class="card c7">
+            <h3>Video right in the window</h3>
+            <p>mpv draws into the desktop app, with Tuner's own themed controls on top.</p>
+            <div class="mock mock-video" aria-hidden="true">
+              <div class="mv-screen">
+                <span class="mv-badge">1920×1080 · 25 fps · 4.2 Mb/s</span>
+                <div class="mv-bar">
+                  <i class="mv-seek"><b></b></i>
+                  <div class="mv-row">
+                    <svg viewBox="0 0 24 24" class="mv-big"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>
+                    <svg viewBox="0 0 24 24"><path d="M11.5 6v12L3 12zm9 0v12L12 12z"/></svg>
+                    <svg viewBox="0 0 24 24"><path d="M12.5 6v12L21 12zm-9 0v12L12 12z"/></svg>
+                    <svg viewBox="0 0 24 24"><path d="M3 9h4l5-4v14l-5-4H3z"/></svg>
+                    <i class="mv-vol"><b></b></i>
+                    <span class="mv-time">0:42:10 / 1:44:17</span>
+                    <span class="grow"></span>
+                    <svg viewBox="0 0 24 24" class="mv-line"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M7 12h3.5M13 12h4M7 15.5h6"/></svg>
+                    <svg viewBox="0 0 24 24" class="mv-line mv-on"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2"/></svg>
+                    <svg viewBox="0 0 24 24" class="mv-line"><path d="M13.5 4H20v6.5M20 4l-8.5 8.5M17.5 14v6H4V6.5h6"/></svg>
+                    <svg viewBox="0 0 24 24" class="mv-line"><rect x="2" y="6.5" width="20" height="11" rx="2"/></svg>
+                    <svg viewBox="0 0 24 24" class="mv-line"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article class="card c5">
             <h3>Any playlist, one library</h3>
             <p>Open a file or URL, or save an account once for both interfaces.</p>
             <div class="mock">
               <div class="pills"><span class="pill">M3U file</span><span class="pill">M3U URL</span><span class="pill">Xtream Codes</span></div>
               <div class="field"><span class="field-k">CMD</span><code>tuner playlist.m3u</code><span class="field-go">Run ↵</span></div>
-            </div>
-          </article>
-
-          <article class="card c5">
-            <h3>Stream limits built in</h3>
-            <p>Local slots, plus a provider check before another stream starts.</p>
-            <div class="mock mock-limit">
-              <div class="slots"><span class="slot on"></span><span class="slot on"></span><span class="slot"></span><span class="slot"></span><em>2 / 4</em></div>
-              <div class="mini-dialog"><b>Stream limit</b><span>1 of 1 connections in use</span><div><i>Cancel</i><i class="danger">Play anyway</i></div></div>
             </div>
           </article>
 
@@ -135,8 +153,8 @@
           </article>
 
           <article class="card c4">
-            <h3>Plays in mpv</h3>
-            <p>Your <code>mpv.conf</code>, hardware decoding, filters, shaders.</p>
+            <h3>Still mpv underneath</h3>
+            <p>Your <code>mpv.conf</code> and hardware decoding apply. One click moves a stream to mpv's own window.</p>
             <div class="mock mock-mpv">
               <div class="mpv-ph"><span>▶</span></div>
               <div class="mpv-prog"><i></i></div>
@@ -149,6 +167,25 @@
             <div class="mock mock-secret">
               <code>http://line.example.com/live/<b>••••••••</b>/1001.ts</code>
               <span class="pill">Show stream URL</span>
+            </div>
+          </article>
+
+          <article class="card c5">
+            <h3>Stream limits built in</h3>
+            <p>Local slots, plus a provider check before another stream starts.</p>
+            <div class="mock mock-limit">
+              <div class="slots"><span class="slot on"></span><span class="slot on"></span><span class="slot"></span><span class="slot"></span><em>2 / 4</em></div>
+              <div class="mini-dialog"><b>Stream limit</b><span>1 of 1 connections in use</span><div><i>Cancel</i><i class="danger">Play anyway</i></div></div>
+            </div>
+          </article>
+
+          <article class="card c7">
+            <h3>Your tracks, your view</h3>
+            <p>Audio and subtitle tracks by language, mpv's stats, cinema mode and fullscreen.</p>
+            <div class="mock mock-tracks" aria-hidden="true">
+              <div class="mt-col"><span class="label">Audio</span><span class="mt-row on">English <small>E-AC-3 · 5.1 · Default</small></span><span class="mt-row">Turkish <small>Dubbed · AAC · stereo</small></span></div>
+              <div class="mt-col"><span class="label">Subtitles</span><span class="mt-row">Off</span><span class="mt-row on">English <small>SDH · SubRip</small></span></div>
+              <div class="mt-col mt-pills"><span class="pill">Cinema mode</span><span class="pill">Fullscreen · F11</span><span class="pill">Open in mpv window</span></div>
             </div>
           </article>
 

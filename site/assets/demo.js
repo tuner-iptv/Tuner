@@ -37,6 +37,18 @@
     back: '<path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>',
     close: '<path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>',
     check: '<path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>',
+    // embedded video's control bar
+    rewind: '<path d="M11.5 6v12L3 12zm9 0v12L12 12z"/>',
+    forward: '<path d="M12.5 6v12L21 12zm-9 0v12L12 12z"/>',
+    volume: '<path fill="currentColor" d="M3 9h4l5-4v14l-5-4H3z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    muted: '<path fill="currentColor" d="M3 9h4l5-4v14l-5-4H3z"/><path d="M16 9.5l5 5M21 9.5l-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    subtitles: '<rect x="3" y="5" width="18" height="14" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7 12h3.5M13 12h4M7 15.5h6M15.5 15.5h1.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    eye: '<path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" fill="currentColor"/>',
+    stats: '<path d="M3 19h4v-5H3zm7 0h4V10h-4zm7 0h4V4h-4z"/>',
+    detach: '<path d="M13.5 4H20v6.5M20 4l-8.5 8.5M17.5 14v6H4V6.5h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+    cinema: '<rect x="2" y="6.5" width="20" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>',
+    full: '<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+    unfull: '<path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
   };
   const icon = (name, cls = "") => {
     const s = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -65,6 +77,14 @@
       "aria-hidden": "true",
     });
 
+  // Same format as the GUI's time label: hours only when needed.
+  const clock = (secs) => {
+    const t = Math.max(0, Math.floor(secs));
+    const [hh, m, ss] = [Math.floor(t / 3600), Math.floor(t / 60) % 60, t % 60];
+    const pad = (n) => String(n).padStart(2, "0");
+    return hh ? `${hh}:${pad(m)}:${pad(ss)}` : `${m}:${pad(ss)}`;
+  };
+
   const touch = matchMedia("(pointer: coarse)");
   const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
   const keepInView = (box, row) => {
@@ -85,7 +105,10 @@
     series: null,
     seriesSel: 0,
     dialog: null,
-    playing: null,
+    playing: null, // { item, paused, pos, edge, aid, sid }
+    detached: false, // moved to mpv's own window ("Open in mpv window")
+    volume: 100,
+    muted: false,
     showUrl: false,
     showDetails: true,
     status: { text: "Ready. Press Enter on a channel to play.", kind: "" },
@@ -140,6 +163,35 @@
     if (!a.m3u) parts.push(`${connections()}/${a.limit} connections`);
     parts.push(`limit ${plural(a.limit, "stream")}`);
     return parts.join(" · ");
+  };
+
+  // What mpv would report for a stream: length, video parameters, tracks.
+  const isAudio = (item) => item.format === "AAC";
+  const duration = (item) =>
+    item.kind === "movie" ? (82 + (item.hue % 47)) * 60 + 17 : item.kind === "episode" ? (38 + (item.hue % 11)) * 60 + 41 : null;
+  const params = (item) => {
+    if (isAudio(item)) return null;
+    const hd = item.kind !== "live" || / HD$/.test(item.name);
+    return {
+      w: hd ? 1920 : 1280,
+      h: hd ? 1080 : 720,
+      fps: item.kind !== "live" ? 23.976 : item.group === "Sports" ? 50 : 25,
+      mbps: (hd ? 3.4 : 2.1) + (item.hue % 17) / 10,
+    };
+  };
+  const LANGS = { eng: "English", tur: "Turkish", deu: "German", spa: "Spanish", fra: "French" };
+  const tracks = (item) => {
+    const t = (id, lang, extra) => ({ id, lang, title: "", codec: "AAC", ch: "stereo", def: false, forced: false, ...extra });
+    if (item.kind === "movie")
+      return {
+        audio: [t(1, "eng", { codec: "E-AC-3", ch: "5.1", def: true }), t(2, "tur", { title: "Dubbed" }), t(3, "deu")],
+        subs: [t(1, "eng", { codec: "SubRip" }), t(2, "eng", { title: "SDH", codec: "SubRip" }), t(3, "tur", { codec: "SubRip" }), t(4, "spa", { codec: "SubRip", forced: true })],
+      };
+    if (item.kind === "episode")
+      return { audio: [t(1, "eng", { def: true })], subs: [t(1, "eng", { codec: "WebVTT" }), t(2, "tur", { codec: "WebVTT" })] };
+    if (item.name.startsWith("Café")) return { audio: [t(1, "tur", { def: true }), t(2, "eng")], subs: [] };
+    if (item.group === "News") return { audio: [t(1, "eng", { def: true })], subs: [t(1, "eng", { title: "Teletext", codec: "DVB" })] };
+    return { audio: [t(1, "eng", { def: true })], subs: [] };
   };
 
   const act = {
@@ -212,14 +264,53 @@
       }
       act.start(item);
     },
-    start(item) {
+    // `keep` carries the tracks and position over when the stream moves to
+    // mpv's own window; anything else starts the stream fresh.
+    start(item, keep) {
       s.dialog = null;
       if (item.offline) {
         say(`Could not play ${item.name}: the stream failed to open.`, "err");
         return emit();
       }
-      s.playing = { item, paused: false };
-      say(`Playing ${item.name}`);
+      const tr = tracks(item);
+      const def = tr.audio.find((a) => a.def) || tr.audio[0];
+      s.playing = keep
+        ? { ...keep, item, paused: false }
+        : { item, paused: false, pos: 0, edge: 0, aid: def ? def.id : 0, sid: 0 };
+      say(keep ? `Playing ${item.name} in an mpv window` : `Playing ${item.name}`);
+      emit();
+    },
+    // "Open in mpv window": replays the stream there like a channel switch,
+    // so the stream slot is kept and only one stream is ever open.
+    detach() {
+      const p = s.playing;
+      if (!p || s.detached || busy()) return;
+      s.detached = true;
+      act.start(p.item, p);
+    },
+    seek(to) {
+      const p = s.playing;
+      if (!p) return;
+      const d = duration(p.item);
+      // live streams only seek within what mpv has cached
+      p.pos = d ? Math.max(0, Math.min(to, d)) : Math.max(Math.max(0, p.edge - 60), Math.min(to, p.edge));
+      emit();
+    },
+    seekBy(d) {
+      if (s.playing) act.seek(s.playing.pos + d);
+    },
+    setVolume(v) {
+      s.volume = Math.max(0, Math.min(130, Math.round(v)));
+      s.muted = false;
+      emit();
+    },
+    toggleMute() {
+      s.muted = !s.muted;
+      emit();
+    },
+    setTrack(kind, id) {
+      if (!s.playing) return;
+      s.playing[kind === "audio" ? "aid" : "sid"] = id;
       emit();
     },
     answer(yes) {
@@ -238,6 +329,7 @@
     stop() {
       if (!s.playing) return;
       s.playing = null;
+      s.detached = false;
       say("Stopped. mpv closed and the stream slot is free.");
       emit();
     },
@@ -246,6 +338,7 @@
       if (i === s.account) return emit();
       const target = D.accounts[i];
       s.playing = null;
+      s.detached = false;
       s.account = i;
       s.section = "live";
       s.series = null;
@@ -259,6 +352,7 @@
     refresh() {
       if (s.quit) return;
       s.playing = null;
+      s.detached = false;
       s.section = "live";
       s.series = null;
       s.group = 0;
@@ -276,6 +370,7 @@
     },
     quit() {
       s.playing = null;
+      s.detached = false;
       s.quit = true;
       emit();
     },
@@ -298,10 +393,126 @@
   };
   const server = (item) => item.host || acct().server;
 
+  // ------------------------------------------------------------------ video
+  // Stands in for the decoded picture: painted on a canvas, never streamed.
+  // The playback clock lives in s.playing.pos, so the embedded video and the
+  // mpv window show the same moment when the stream moves between them.
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const bars = [0, 55, 110, 165, 220, 275, 330];
+  const paint = (canvas, p) => {
+    const ctx = canvas.getContext("2d");
+    const { item } = p;
+    const W = canvas.width;
+    const H = canvas.height;
+    const t = p.pos * 1000;
+    const hue = item.hue;
+    const g = ctx.createLinearGradient(0, 0, W, H);
+    g.addColorStop(0, `hsl(${hue} 55% 24%)`);
+    g.addColorStop(1, `hsl(${(hue + 50) % 360} 60% 10%)`);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    if (isAudio(item)) {
+      const n = 28;
+      for (let i = 0; i < n; i++) {
+        const v = 0.25 + 0.7 * Math.abs(Math.sin(t / 380 + i * 0.7) * Math.cos(t / 900 + i * 0.3));
+        ctx.fillStyle = `hsl(${(hue + i * 6) % 360} 70% 62%)`;
+        const bh = v * H * 0.55;
+        ctx.fillRect(14 + i * ((W - 28) / n), H * 0.72 - bh, (W - 28) / n - 4, bh);
+      }
+    } else {
+      bars.forEach((b, i) => {
+        ctx.fillStyle = `hsl(${(hue + b) % 360} 65% 55% / 0.85)`;
+        ctx.fillRect((i * W) / 7, 0, W / 7 + 1, H * 0.5);
+      });
+      for (let i = 0; i < 14; i++) {
+        ctx.fillStyle = `hsl(${hue} 20% ${8 + i * 6}%)`;
+        ctx.fillRect((i * W) / 14, H * 0.5, W / 14 + 1, H * 0.08);
+      }
+      // a dot drifting across, so it is visibly "moving"
+      const x = ((reduce ? 0 : t / 6) % (W + 40)) - 20;
+      ctx.fillStyle = "rgba(255,255,255,.9)";
+      ctx.beginPath();
+      ctx.arc(x, H * 0.64 + Math.sin(t / 400) * 8, 7, 0, 7);
+      ctx.fill();
+    }
+    // channel card
+    ctx.fillStyle = "rgba(8,8,16,.72)";
+    ctx.beginPath();
+    ctx.roundRect(W * 0.2, H * 0.3, W * 0.6, H * 0.34, 14);
+    ctx.fill();
+    ctx.fillStyle = "#fff";
+    ctx.textAlign = "center";
+    ctx.font = "700 40px ui-monospace, monospace";
+    ctx.fillText(item.logo || (item.kind === "episode" ? "TV" : item.kind === "movie" ? "FILM" : "♪"), W / 2, H * 0.46);
+    ctx.font = "600 15px system-ui, sans-serif";
+    ctx.fillText((item.show ? `${item.show} · ` : "") + item.name.replace(/ \(.*\)$/, ""), W / 2, H * 0.57);
+    // subtitles, when a track is on
+    if (p.sid) {
+      const sub = tracks(item).subs.find((x) => x.id === p.sid);
+      const line = { eng: "[quiet music]", tur: "[sakin müzik]", spa: "[música suave]" }[sub ? sub.lang : ""] || "…";
+      ctx.font = "600 17px system-ui, sans-serif";
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = "rgba(0,0,0,.85)";
+      ctx.strokeText(line, W / 2, H * 0.86);
+      ctx.fillText(line, W / 2, H * 0.86);
+    }
+    // corner tags
+    ctx.textAlign = "left";
+    ctx.font = "600 13px ui-monospace, monospace";
+    ctx.fillStyle = "rgba(255,255,255,.85)";
+    ctx.fillText(item.kind === "live" ? "● LIVE" : clock(p.pos), 14, H - 14);
+    ctx.textAlign = "right";
+    ctx.fillText(item.format, W - 14, H - 14);
+    if (p.paused) {
+      ctx.fillStyle = "rgba(0,0,0,.45)";
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(W / 2 - 22, H / 2 - 28, 14, 56);
+      ctx.fillRect(W / 2 + 8, H / 2 - 28, 14, 56);
+    }
+  };
+
+  // One clock for whichever player shows the stream. Each player registers
+  // { shown(), tick() }; tick paints and updates its time label.
+  const Ticker = (() => {
+    const players = [];
+    let raf = 0;
+    let last = 0;
+    const frame = (now) => {
+      raf = 0;
+      const p = s.playing;
+      if (!p) return;
+      const dt = last ? Math.min(now - last, 250) / 1000 : 0;
+      last = now;
+      p.edge += dt;
+      if (!p.paused) {
+        p.pos += dt;
+        const d = duration(p.item);
+        if (d && p.pos >= d) {
+          p.pos = d;
+          p.paused = true;
+        }
+      }
+      players.forEach((pl) => pl.shown() && pl.tick());
+      if (!p.paused) raf = requestAnimationFrame(frame);
+      else last = 0;
+    };
+    // After every state change: paint once, and keep going while playing.
+    subs.push(() => {
+      if (!s.playing) {
+        cancelAnimationFrame(raf);
+        raf = 0;
+        last = 0;
+      } else if (!raf) raf = requestAnimationFrame(frame);
+    });
+    return { add: (pl) => players.push(pl) };
+  })();
+
   // -------------------------------------------------------------- mpv window
+  // mpv's own window: the terminal UI always plays here, the desktop app
+  // after "Open in mpv window".
   const Mpv = (() => {
     const canvas = h("canvas", { width: 480, height: 270, "aria-hidden": "true" });
-    const ctx = canvas.getContext("2d");
     const title = h("span", { class: "mpv-title" });
     const pauseBtn = h("button", { class: "mpv-btn", "aria-label": "Pause or resume", onclick: () => act.pause() });
     const time = h("span", { class: "mpv-time" });
@@ -317,112 +528,18 @@
       canvas,
       h("div", { class: "mpv-ctl" }, pauseBtn, time),
     );
-
-    let t0 = 0;
-    let frozen = 0;
-    let raf = 0;
-    let lastId = null;
-    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const bars = [0, 55, 110, 165, 220, 275, 330];
-
-    const draw = (now) => {
-      const p = s.playing;
-      if (!p) return;
-      const { item } = p;
-      const W = canvas.width;
-      const H = canvas.height;
-      const t = p.paused ? frozen : now - t0;
-      const hue = item.hue;
-      const g = ctx.createLinearGradient(0, 0, W, H);
-      g.addColorStop(0, `hsl(${hue} 55% 24%)`);
-      g.addColorStop(1, `hsl(${(hue + 50) % 360} 60% 10%)`);
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, W, H);
-      const audio = item.format === "AAC";
-      if (audio) {
-        const n = 28;
-        for (let i = 0; i < n; i++) {
-          const v = 0.25 + 0.7 * Math.abs(Math.sin(t / 380 + i * 0.7) * Math.cos(t / 900 + i * 0.3));
-          ctx.fillStyle = `hsl(${(hue + i * 6) % 360} 70% 62%)`;
-          const bh = v * H * 0.55;
-          ctx.fillRect(14 + i * ((W - 28) / n), H * 0.72 - bh, (W - 28) / n - 4, bh);
-        }
-      } else {
-        bars.forEach((b, i) => {
-          ctx.fillStyle = `hsl(${(hue + b) % 360} 65% 55% / 0.85)`;
-          ctx.fillRect((i * W) / 7, 0, W / 7 + 1, H * 0.5);
-        });
-        for (let i = 0; i < 14; i++) {
-          ctx.fillStyle = `hsl(${hue} 20% ${8 + i * 6}%)`;
-          ctx.fillRect((i * W) / 14, H * 0.5, W / 14 + 1, H * 0.08);
-        }
-        // a dot drifting across, so it is visibly "moving"
-        const x = ((reduce ? 0 : t / 6) % (W + 40)) - 20;
-        ctx.fillStyle = "rgba(255,255,255,.9)";
-        ctx.beginPath();
-        ctx.arc(x, H * 0.64 + Math.sin(t / 400) * 8, 7, 0, 7);
-        ctx.fill();
-      }
-      // channel card
-      ctx.fillStyle = "rgba(8,8,16,.72)";
-      ctx.beginPath();
-      ctx.roundRect(W * 0.2, H * 0.3, W * 0.6, H * 0.34, 14);
-      ctx.fill();
-      ctx.fillStyle = "#fff";
-      ctx.textAlign = "center";
-      ctx.font = "700 40px ui-monospace, monospace";
-      ctx.fillText(item.logo || (item.kind === "episode" ? "TV" : item.kind === "movie" ? "FILM" : "♪"), W / 2, H * 0.46);
-      ctx.font = "600 15px system-ui, sans-serif";
-      ctx.fillText((item.show ? `${item.show} · ` : "") + item.name.replace(/ \(.*\)$/, ""), W / 2, H * 0.57);
-      // corner tags
-      ctx.textAlign = "left";
-      ctx.font = "600 13px ui-monospace, monospace";
-      ctx.fillStyle = "rgba(255,255,255,.85)";
-      const secs = Math.floor(t / 1000);
-      const clock = new Date(secs * 1000).toISOString().slice(11, 19);
-      ctx.fillText(item.kind === "live" ? "● LIVE" : clock, 14, H - 14);
-      ctx.textAlign = "right";
-      ctx.fillText(item.format, W - 14, H - 14);
-      if (p.paused) {
-        ctx.fillStyle = "rgba(0,0,0,.45)";
-        ctx.fillRect(0, 0, W, H);
-        ctx.fillStyle = "#fff";
-        ctx.fillRect(W / 2 - 22, H / 2 - 28, 14, 56);
-        ctx.fillRect(W / 2 + 8, H / 2 - 28, 14, 56);
-      }
-      time.textContent = item.kind === "live" ? "LIVE" : clock;
-    };
-
-    const loop = (now) => {
-      draw(now);
-      raf = s.playing && !s.playing.paused ? requestAnimationFrame(loop) : 0;
-    };
+    const shown = () => !!s.playing && (s.view === "tui" || s.detached);
 
     const render = () => {
+      root.hidden = !shown();
+      if (root.hidden) return;
       const p = s.playing;
-      root.hidden = !p;
-      if (!p) {
-        cancelAnimationFrame(raf);
-        raf = 0;
-        lastId = null;
-        return;
-      }
-      if (lastId !== p.item.id) {
-        lastId = p.item.id;
-        t0 = performance.now();
-      }
       title.textContent = `mpv · ${p.item.name}`;
       pauseBtn.replaceChildren(icon(p.paused ? "play" : "pause"));
-      if (p.paused) {
-        cancelAnimationFrame(raf);
-        raf = 0;
-        frozen = frozen && lastId === p.item.id ? frozen : performance.now() - t0;
-        draw(0);
-      } else {
-        if (frozen) t0 = performance.now() - frozen;
-        frozen = 0;
-        if (!raf) raf = requestAnimationFrame(loop);
-      }
+    };
+    const tick = () => {
+      paint(canvas, s.playing);
+      time.textContent = s.playing.item.kind === "live" ? "LIVE" : clock(s.playing.pos);
     };
 
     // Drag by the title bar, like moving a separate window.
@@ -451,7 +568,230 @@
     });
 
     subs.push(render);
+    Ticker.add({ shown, tick });
     return { root };
+  })();
+
+  // ---------------------------------------------------------- embedded video
+  // tuner-gtk's video pane (docs/gui.md#embedded-video): libmpv draws into the
+  // window and tuner draws its own control bar over it, themed like the rest.
+  const Video = (() => {
+    const v = { cinema: false, full: false, info: false, stats: false, menu: false };
+    const canvas = h("canvas", { width: 640, height: 360, class: "v-canvas", "aria-hidden": "true" });
+    const badge = h("span", { class: "v-info", hidden: true });
+    const statsBox = h("pre", { class: "v-stats", hidden: true, "aria-label": "mpv statistics" });
+
+    const btn = (name, label, onclick, cls = "") =>
+      h("button", { class: `v-btn ${cls}`.trim(), type: "button", title: label, "aria-label": label, onclick }, icon(name));
+    const label = (b, text) => (b.title = text, b.setAttribute("aria-label", text));
+    const range = (cls, name, max, oninput) =>
+      h("input", { type: "range", class: `v-range ${cls}`, min: 0, max, step: 1, value: 0, "aria-label": name, oninput });
+    const fill = (r) => r.style.setProperty("--p", `${(100 * r.value) / (r.max || 1)}%`);
+
+    const seek = range("v-seek", "Seek", 1, (e) => act.seek(+e.target.value));
+    const vol = range("v-vol", "Volume", 130, (e) => act.setVolume(+e.target.value));
+    const time = h("span", { class: "v-time" });
+    const pauseBtn = btn("pause", "Pause", () => act.pause(), "v-play");
+    const muteBtn = btn("volume", "Mute", () => act.toggleMute());
+    const tracksBtn = btn("subtitles", "Audio & subtitles", () => setMenu(!v.menu), "v-tracks");
+    tracksBtn.setAttribute("aria-haspopup", "true");
+    const infoBtn = btn("eye", "Stream info: resolution, frame rate, bitrate", () => toggle("info"));
+    const statsBtn = btn("stats", "Playback statistics", () => toggle("stats"));
+    const detachBtn = btn("detach", "Open in mpv window", () => act.detach());
+    const cinemaBtn = btn("cinema", "Cinema mode", () => setCinema(!v.cinema));
+    const fullBtn = btn("full", "Fullscreen (F11)", () => setFull(!v.full));
+    const menu = h("div", { class: "v-menu", hidden: true, role: "menu", "aria-label": "Audio & subtitles" });
+    // Seek bar across the top; below it playback, volume and time on the
+    // left, everything about the view on the right.
+    const ctl = h(
+      "div",
+      { class: "v-ctl" },
+      seek,
+      h(
+        "div",
+        { class: "v-row" },
+        pauseBtn,
+        btn("rewind", "Back 10 s", () => act.seekBy(-10)),
+        btn("forward", "Forward 10 s", () => act.seekBy(10)),
+        muteBtn,
+        vol,
+        time,
+        h("span", { class: "grow" }),
+        tracksBtn,
+        infoBtn,
+        statsBtn,
+        detachBtn,
+        cinemaBtn,
+        fullBtn,
+      ),
+    );
+    const root = h("section", { class: "g-video", hidden: true, "aria-label": "Video" }, canvas, badge, statsBox, ctl, menu);
+
+    const shown = () => !!s.playing && !s.detached && s.view === "gui";
+
+    // The bar fades in on pointer movement and out 2.5 s later, unless the
+    // track menu is open (or, here, the keyboard is in it).
+    let hideTimer = 0;
+    const reveal = () => {
+      ctl.classList.add("show");
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(() => {
+        if (!v.menu && !ctl.querySelector(":focus-visible")) ctl.classList.remove("show");
+      }, 2500);
+    };
+    root.addEventListener("pointermove", reveal);
+    root.addEventListener("pointerdown", reveal);
+    ctl.addEventListener("focusin", reveal);
+    // mpv's default mouse bindings: double-click fullscreen, wheel seeks.
+    canvas.addEventListener("dblclick", () => setFull(!v.full));
+    canvas.addEventListener(
+      "wheel",
+      (e) => {
+        if (!Demo.active) return;
+        e.preventDefault();
+        act.seekBy(e.deltaY < 0 ? 10 : -10);
+      },
+      { passive: false },
+    );
+    document.addEventListener("pointerdown", (e) => {
+      if (v.menu && !e.target.closest(".v-menu, .v-tracks")) setMenu(false);
+    });
+
+    const toggle = (k) => {
+      v[k] = !v[k];
+      render();
+    };
+    const setMenu = (open) => {
+      v.menu = open;
+      render();
+      reveal();
+    };
+    const setCinema = (on) => {
+      v.cinema = on;
+      emit();
+    };
+    // Fullscreen shows only the video and its bar: the demo's stage goes
+    // fullscreen when the browser allows it, and leaving it there (Esc)
+    // leaves fullscreen here too.
+    const setFull = (on, quiet) => {
+      v.full = on;
+      try {
+        const stage = root.closest(".stage");
+        if (on && stage && stage.requestFullscreen && !document.fullscreenElement) stage.requestFullscreen().catch(() => {});
+        else if (!on && document.fullscreenElement) document.exitFullscreen().catch(() => {});
+      } catch {
+        // no Fullscreen API: the window still shows only the video
+      }
+      if (!quiet) emit();
+    };
+    document.addEventListener("fullscreenchange", () => {
+      if (!document.fullscreenElement && v.full) {
+        v.full = false;
+        emit();
+      }
+    });
+
+    const trackRow = (kind, t, cur) =>
+      h(
+        "button",
+        {
+          class: `v-track ${cur ? "on" : ""}`,
+          type: "button",
+          role: "menuitemradio",
+          "aria-checked": String(cur),
+          onclick: () => {
+            v.menu = false;
+            act.setTrack(kind, t ? t.id : 0);
+          },
+        },
+        h(
+          "span",
+          { class: "v-track-main" },
+          h("b", { text: t ? LANGS[t.lang] || t.lang : "Off" }),
+          t
+            ? h("small", {
+                text: [t.title, t.codec, kind === "audio" ? t.ch : null, t.def ? "Default" : null, t.forced ? "Forced" : null].filter(Boolean).join(" · "),
+              })
+            : null,
+        ),
+        cur ? icon("check") : null,
+      );
+    const renderMenu = () => {
+      const p = s.playing;
+      const tr = tracks(p.item);
+      menu.replaceChildren(
+        h("div", { class: "v-col" }, h("h4", { text: "Audio" }), ...tr.audio.map((t) => trackRow("audio", t, t.id === p.aid))),
+        h("div", { class: "v-col" }, h("h4", { text: "Subtitles" }), trackRow("sub", null, !p.sid), ...tr.subs.map((t) => trackRow("sub", t, t.id === p.sid))),
+      );
+    };
+
+    // What mpv's stats overlay shows on its first page.
+    const statsText = (p) => {
+      const it = p.item;
+      const pr = params(it);
+      const a = tracks(it).audio.find((x) => x.id === p.aid);
+      return [
+        `File: ${(it.path || "").split("/").pop()}`,
+        pr ? `Video: h264  ${pr.w}x${pr.h}  ${pr.fps.toFixed(3)} fps  ${pr.mbps.toFixed(1)} Mbps` : null,
+        a ? `Audio: ${a.codec.toLowerCase()}  ${a.ch}  48000 Hz` : null,
+        `Cache: ${(4 + (it.hue % 5) + (p.paused ? 6 : 0)).toFixed(1)}s`,
+      ]
+        .filter(Boolean)
+        .join("\n");
+    };
+
+    const tick = () => {
+      const p = s.playing;
+      paint(canvas, p);
+      const d = duration(p.item);
+      time.textContent = d ? `${clock(p.pos)} / ${clock(d)}` : clock(p.pos);
+      if (d && !seek.matches(":active")) {
+        seek.value = p.pos;
+        fill(seek);
+      }
+    };
+
+    const render = () => {
+      root.hidden = !shown();
+      if (root.hidden) {
+        // Nothing left to watch (stopped, or moved to mpv's window): leave
+        // cinema mode and fullscreen, which would otherwise show an empty window.
+        v.cinema = false;
+        v.menu = false;
+        if (v.full) setFull(false, true);
+        return;
+      }
+      const p = s.playing;
+      const d = duration(p.item);
+      pauseBtn.replaceChildren(icon(p.paused ? "play" : "pause"));
+      label(pauseBtn, p.paused ? "Play" : "Pause");
+      muteBtn.replaceChildren(icon(s.muted ? "muted" : "volume"));
+      label(muteBtn, s.muted ? "Unmute" : "Mute");
+      vol.value = s.volume;
+      fill(vol);
+      // live streams have no length, so no seek bar
+      seek.hidden = !d;
+      if (d) seek.max = d;
+      for (const [b, on] of [[infoBtn, v.info], [statsBtn, v.stats], [cinemaBtn, v.cinema], [tracksBtn, v.menu]]) {
+        b.classList.toggle("on", on);
+        b.setAttribute(b === tracksBtn ? "aria-expanded" : "aria-pressed", String(on));
+      }
+      fullBtn.replaceChildren(icon(v.full ? "unfull" : "full"));
+      label(fullBtn, v.full ? "Leave fullscreen (F11)" : "Fullscreen (F11)");
+      const pr = params(p.item);
+      badge.hidden = !v.info;
+      badge.textContent = pr ? `${pr.w}×${pr.h} · ${+pr.fps.toFixed(2)} fps · ${pr.mbps.toFixed(1)} Mb/s` : "Audio only";
+      statsBox.hidden = !v.stats;
+      statsBox.classList.toggle("below", v.info);
+      statsBox.textContent = statsText(p);
+      menu.hidden = !v.menu;
+      if (v.menu) renderMenu();
+      tick();
+    };
+
+    subs.push(render);
+    Ticker.add({ shown, tick });
+    return { root, shown, state: v, setFull, setCinema };
   })();
 
   // --------------------------------------------------------------- GTK view
@@ -459,6 +799,10 @@
     let mode = "list"; // list | cards
     let pop = null; // acct | theme | null
     let lastSel = null;
+    // The details panel closes while the video is open, and comes back as
+    // it was when the video closes.
+    let videoWas = false;
+    let detailsBefore = null;
 
     const search = h("input", {
       type: "search",
@@ -510,8 +854,36 @@
     const status = h("footer", { class: "g-status" });
     const overlay = h("div", { class: "g-overlay", hidden: true });
 
-    const body = h("div", { class: "g-body" }, side, main, details);
+    // Divider between the channel list and the video; drag (or focus and
+    // use Left/Right) to resize. The video takes the rest of the width.
+    const handle = h("div", { class: "g-handle", role: "separator", "aria-orientation": "vertical", "aria-label": "Resize channel list", tabindex: "0", hidden: true });
+    const body = h("div", { class: "g-body" }, side, main, handle, Video.root, details);
     const root = h("div", { class: "gtk", id: "gtk", tabindex: "-1" }, head, body, playerBar, status, overlay);
+
+    let listW = 300;
+    const setListW = (w) => {
+      const room = body.clientWidth - side.offsetWidth - (details.hidden ? 0 : details.offsetWidth) - handle.offsetWidth;
+      listW = Math.round(Math.max(220, Math.min(w, room - 240)));
+      root.style.setProperty("--list-w", `${listW}px`);
+    };
+    handle.addEventListener("pointerdown", (e) => {
+      const x0 = e.clientX;
+      const w0 = main.offsetWidth;
+      handle.setPointerCapture(e.pointerId);
+      const move = (ev) => setListW(w0 + ev.clientX - x0);
+      const up = () => {
+        handle.removeEventListener("pointermove", move);
+        handle.removeEventListener("pointerup", up);
+      };
+      handle.addEventListener("pointermove", move);
+      handle.addEventListener("pointerup", up);
+    });
+    handle.addEventListener("keydown", (e) => {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      setListW(listW + (e.key === "ArrowRight" ? 10 : -10));
+      e.preventDefault();
+      e.stopPropagation();
+    });
 
     const setMode = (m) => {
       mode = m;
@@ -784,6 +1156,22 @@
 
     const render = () => {
       clamp();
+      const video = Video.shown();
+      if (s.view === "gui" && video !== videoWas) {
+        if (video) {
+          detailsBefore = s.showDetails;
+          s.showDetails = false;
+        } else if (detailsBefore !== null) {
+          s.showDetails = detailsBefore;
+          detailsBefore = null;
+        }
+        videoWas = video;
+      }
+      handle.hidden = !video;
+      root.classList.toggle("has-video", video);
+      root.classList.toggle("no-details", !s.showDetails);
+      root.classList.toggle("cinema", video && Video.state.cinema);
+      root.classList.toggle("full", video && Video.state.full);
       acctBtn.replaceChildren(h("span", { text: acct().name }), icon("chevron"));
       renderSide();
       renderMain();
@@ -805,6 +1193,16 @@
         return k !== "Tab";
       }
       if (s.quit) return false;
+      // The video's own keys: F11 fullscreen; in fullscreen Esc leaves and
+      // Space pauses; in cinema mode Esc leaves it.
+      const v = Video.state;
+      if (Video.shown()) {
+        if (k === "F11") return Video.setFull(!v.full), true;
+        if (v.full && k === "Escape") return Video.setFull(false), true;
+        if (v.full && k === " ") return act.pause(), true;
+        if (v.cinema && k === "Escape") return Video.setCinema(false), true;
+      }
+      if (document.activeElement && document.activeElement.matches("input[type=range]") && k.startsWith("Arrow")) return false;
       if (k === "Escape") {
         if (pop) {
           pop = null;
@@ -838,7 +1236,7 @@
       }
       if (k === "PageDown" || k === "PageUp") return act.move(k === "PageDown" ? 8 : -8), true;
       if (k === "Enter") {
-        if (document.activeElement && document.activeElement.closest(".g-pop, .g-btn, .g-seg, .g-dialog")) return false;
+        if (document.activeElement && document.activeElement.closest(".g-pop, .g-btn, .g-seg, .g-dialog, .v-ctl, .g-handle")) return false;
         act.activate();
         return true;
       }
@@ -1120,8 +1518,8 @@
     ),
   );
 
-  const GUI_HINT = "Type to search · ↑↓ move · Enter play · Ctrl+P pause · Ctrl+S stop · Ctrl+I details · F5 refresh. (Browsers keep some Ctrl shortcuts, so use the buttons or Alt+1/2/3 for sections.)";
-  const TUI_HINT = "Click the terminal, then use your keyboard like in the real thing. On a phone, use the keys below.";
+  const GUI_HINT = "Type to search · ↑↓ move · Enter play · Ctrl+P pause · Ctrl+S stop · Ctrl+I details · F5 refresh. Point at the video for its controls; double-click it for fullscreen. (Browsers keep some Ctrl shortcuts, so use the buttons or Alt+1/2/3 for sections.)";
+  const TUI_HINT = "Click the terminal, then use your keyboard like in the real thing. The terminal app plays in mpv's own window. On a phone, use the keys below.";
 
   const tabs = demo.querySelectorAll("[data-view]");
   const syncView = () => {
@@ -1133,7 +1531,7 @@
     Gtk.root.hidden = s.view !== "gui";
     Tui.root.hidden = s.view !== "tui";
     keysBar.hidden = s.view !== "tui";
-    foot.textContent = s.view === "gui" ? (touch.matches ? "Tap a channel to play it. Tap a playing channel's pause button to pause." : GUI_HINT) : TUI_HINT;
+    foot.textContent = s.view === "gui" ? (touch.matches ? "Tap a channel to play it in the window. Tap the video for its controls." : GUI_HINT) : TUI_HINT;
     demo.dataset.view = s.view;
   };
   tabs.forEach((t) => t.addEventListener("click", () => (Tui.resetMode(), act.setView(t.dataset.view))));
@@ -1176,7 +1574,8 @@
       const it = p.item;
       set("np-state", p.paused ? "Paused" : it.kind === "live" ? "Live" : "Playing");
       set("np-title", it.show ? `${it.show} · ${it.name}` : it.name);
-      set("np-sub", [it.kind === "live" ? `#${it.num}` : null, it.group, it.format].filter(Boolean).join(" · "));
+      const where = s.view === "gui" && !s.detached ? "in the window" : "mpv window";
+      set("np-sub", [it.kind === "live" ? `#${it.num}` : null, it.group, it.format, where].filter(Boolean).join(" · "));
     });
   }
 
