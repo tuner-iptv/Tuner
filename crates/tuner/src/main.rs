@@ -9,7 +9,9 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use ratatui::crossterm::event::{self, Event, KeyEventKind};
+use ratatui::crossterm::event::{
+    self, DisableMouseCapture, EnableMouseCapture, Event, KeyEventKind,
+};
 use tuner_app::{Config, Resolved, Source, StreamGuard};
 use tuner_core::Library;
 use tuner_mpv::{MpvOptions, Player};
@@ -106,7 +108,10 @@ fn main() -> Result<()> {
     }
 
     let mut terminal = ratatui::init();
+    // Costs native text selection in the terminal (Shift-drag still works).
+    let _ = ratatui::crossterm::execute!(std::io::stdout(), EnableMouseCapture);
     let result = run(&mut terminal, &mut app, &config, &terminate, &updates);
+    let _ = ratatui::crossterm::execute!(std::io::stdout(), DisableMouseCapture);
     ratatui::restore();
     // Dropping the app quits mpv and releases the stream slot.
     drop(app);
@@ -241,11 +246,12 @@ fn run(
         } else {
             TICK
         };
-        if event::poll(interval)?
-            && let Event::Key(key) = event::read()?
-            && key.kind == KeyEventKind::Press
-        {
-            app.handle_key(key);
+        if event::poll(interval)? {
+            match event::read()? {
+                Event::Key(key) if key.kind == KeyEventKind::Press => app.handle_key(key),
+                Event::Mouse(mouse) => app.handle_mouse(mouse),
+                _ => {}
+            }
         }
         app.tick();
     }

@@ -7,6 +7,11 @@ three in sync, and the browser demo too (`site/assets/demo.js`, see
 
 ## Normal mode
 
+Mouse (normal mode, `App::handle_mouse`): wheel scrolls the list under the
+pointer; left click selects a row; clicking the already-selected channel plays
+it (like `Enter`). Mouse capture disables native text selection (use
+Shift-drag).
+
 | Key                    | Action                                          |
 | ---------------------- | ----------------------------------------------- |
 | `1` / `2` / `3`        | Show Live / Movies / Series (Movies and Series need an Xtream source; loaded on first use) |

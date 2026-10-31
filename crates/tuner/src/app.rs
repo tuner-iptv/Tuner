@@ -4,7 +4,10 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use ratatui::crossterm::event::{
+    KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+};
+use ratatui::layout::{Position, Rect};
 use ratatui::widgets::ListState;
 use tuner_app::{Catalog, Controller, Playback, Request, StreamGate, Tick, status_line};
 use tuner_core::{Channel, Library, Series};
@@ -156,6 +159,9 @@ pub struct App {
     visible: Vec<usize>,
     pub groups_state: ListState,
     pub channels_state: ListState,
+    /// Where the two lists were last drawn, for mouse hit-testing.
+    pub groups_area: Rect,
+    pub channels_area: Rect,
     pub focus: Focus,
     pub mode: Mode,
     pub query: String,
@@ -199,6 +205,8 @@ impl App {
             visible: Vec::new(),
             groups_state: ListState::default().with_selected(Some(0)),
             channels_state: ListState::default(),
+            groups_area: Rect::default(),
+            channels_area: Rect::default(),
             focus: Focus::Channels,
             mode: Mode::Normal,
             query: String::new(),
@@ -521,6 +529,57 @@ impl App {
                 }
             }
             Mode::Alert { .. } => self.handle_alert_key(key),
+        }
+    }
+
+    /// Wheel scrolls a list; a click selects a row, and clicking the row that
+    /// is already selected in the channels list plays it (like Enter).
+    pub fn handle_mouse(&mut self, mouse: MouseEvent) {
+        if self.mode != Mode::Normal {
+            return;
+        }
+        let pos = Position::new(mouse.column, mouse.row);
+        let (focus, area) = if self.groups_area.contains(pos) {
+            (Focus::Groups, self.groups_area)
+        } else if self.channels_area.contains(pos) {
+            (Focus::Channels, self.channels_area)
+        } else {
+            return;
+        };
+        let state = match focus {
+            Focus::Groups => &self.groups_state,
+            Focus::Channels => &self.channels_state,
+        };
+        let current = state.selected().unwrap_or(0);
+        let delta = match mouse.kind {
+            MouseEventKind::ScrollDown => 1,
+            MouseEventKind::ScrollUp => -1,
+            MouseEventKind::Down(MouseButton::Left) => {
+                // Row 0 and the last row are the border.
+                let inner = mouse.row - area.y;
+                if inner == 0 || inner + 1 >= area.height {
+                    return;
+                }
+                let row = inner as usize - 1 + state.offset();
+                let len = match focus {
+                    Focus::Groups => self.group_names.len(),
+                    Focus::Channels => self.visible.len(),
+                };
+                if row >= len {
+                    return;
+                }
+                row as isize - current as isize
+            }
+            _ => return,
+        };
+        let replay = delta == 0
+            && focus == self.focus
+            && focus == Focus::Channels
+            && matches!(mouse.kind, MouseEventKind::Down(_));
+        self.focus = focus;
+        self.move_by(delta);
+        if replay {
+            self.open_selected();
         }
     }
 
@@ -928,6 +987,44 @@ mod tests {
 
     fn press(app: &mut App, code: KeyCode) {
         app.handle_key(KeyEvent::from(code));
+    }
+
+    fn mouse(app: &mut App, kind: MouseEventKind, column: u16, row: u16) {
+        app.handle_mouse(MouseEvent {
+            kind,
+            column,
+            row,
+            modifiers: KeyModifiers::NONE,
+        });
+    }
+
+    #[test]
+    fn mouse_scrolls_selects_and_plays() {
+        let (mut app, player) = app();
+        app.groups_area = Rect::new(0, 0, 10, 10);
+        app.channels_area = Rect::new(10, 0, 30, 10);
+        let left = MouseEventKind::Down(MouseButton::Left);
+
+        mouse(&mut app, MouseEventKind::ScrollDown, 12, 3);
+        assert_eq!(app.channels_state.selected(), Some(1));
+        // Row 3 inside the border is the third channel; first click selects only.
+        mouse(&mut app, left, 12, 3);
+        assert_eq!(app.channels_state.selected(), Some(2));
+        assert!(log(&player).is_empty());
+        mouse(&mut app, left, 12, 3);
+        assert_eq!(
+            log(&player).last().unwrap(),
+            "play http://cnn",
+            "second click plays"
+        );
+        // Border and blank space below the list do nothing.
+        mouse(&mut app, left, 12, 0);
+        mouse(&mut app, left, 12, 8);
+        assert_eq!(app.channels_state.selected(), Some(2));
+        // A group click filters the channel list.
+        mouse(&mut app, left, 2, 3);
+        assert_eq!(app.focus, Focus::Groups);
+        assert_eq!(names(&app).len(), 1);
     }
 
     fn names(app: &App) -> Vec<&str> {
