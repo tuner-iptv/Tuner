@@ -1,10 +1,13 @@
 //! Application state and key handling. Rendering lives in `ui.rs`; this module
 //! has no terminal I/O so it can be unit tested with a fake player and gate.
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
-use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use ratatui::crossterm::event::{
+    KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+};
+use ratatui::layout::{Position, Rect};
 use ratatui::widgets::ListState;
 use tuner_app::{Catalog, Controller, Playback, Request, StreamGate, Tick, status_line};
 use tuner_core::{Channel, Library, Series};
@@ -87,6 +90,30 @@ enum Loaded {
     Episodes(Series, Library),
 }
 
+type Ctl = Controller<Box<dyn Playback + Send>, Box<dyn StreamGate + Send>>;
+
+/// A play request for a worker thread: [`StartJob::run`] blocks (provider
+/// check, spawning mpv), so the loading overlay keeps animating meanwhile.
+pub struct StartJob {
+    channel: Channel,
+    confirm: bool,
+    controller: Arc<Mutex<Ctl>>,
+}
+
+impl StartJob {
+    pub fn run(self) -> (Channel, Request) {
+        let mut controller = self.controller.lock().unwrap();
+        let url = &self.channel.url;
+        let outcome = if self.confirm {
+            controller.confirm(SLOT, url)
+        } else {
+            controller.request(SLOT, url)
+        };
+        drop(controller);
+        (self.channel, outcome)
+    }
+}
+
 /// A catalogue request for a worker thread: [`CatalogJob::run`] blocks.
 pub struct CatalogJob {
     load: Load,
@@ -148,7 +175,10 @@ pub struct App {
     catalog: Option<Arc<dyn Catalog>>,
     pending: Option<Load>,
     section: Section,
-    controller: Controller<Box<dyn Playback>, Box<dyn StreamGate>>,
+    /// Locked by the start worker while it blocks on the provider and mpv.
+    controller: Arc<Mutex<Ctl>>,
+    /// A start for the event loop to run on a worker thread.
+    start: Option<StartJob>,
     now: Option<Channel>,
     /// Group list as shown: index 0 is "All", then the shown library's groups.
     group_names: Vec<String>,
@@ -156,6 +186,9 @@ pub struct App {
     visible: Vec<usize>,
     pub groups_state: ListState,
     pub channels_state: ListState,
+    /// Where the two lists were last drawn, for mouse hit-testing.
+    pub groups_area: Rect,
+    pub channels_area: Rect,
     pub focus: Focus,
     pub mode: Mode,
     pub query: String,
@@ -181,8 +214,8 @@ pub struct App {
 impl App {
     pub fn new(
         library: Library,
-        player: impl Playback + 'static,
-        gate: impl StreamGate + 'static,
+        player: impl Playback + Send + 'static,
+        gate: impl StreamGate + Send + 'static,
     ) -> Self {
         let status = format!("Loaded {} channels", library.channels().len());
         let mut app = Self {
@@ -193,12 +226,18 @@ impl App {
             catalog: None,
             pending: None,
             section: Section::Live,
-            controller: Controller::new(Box::new(player), Box::new(gate)),
+            controller: Arc::new(Mutex::new(Controller::new(
+                Box::new(player),
+                Box::new(gate),
+            ))),
+            start: None,
             now: None,
             group_names: Vec::new(),
             visible: Vec::new(),
             groups_state: ListState::default().with_selected(Some(0)),
             channels_state: ListState::default(),
+            groups_area: Rect::default(),
+            channels_area: Rect::default(),
             focus: Focus::Channels,
             mode: Mode::Normal,
             query: String::new(),
@@ -291,11 +330,11 @@ impl App {
         &mut self,
         name: String,
         library: Library,
-        gate: impl StreamGate + 'static,
+        gate: impl StreamGate + Send + 'static,
         catalog: impl Catalog + 'static,
         status: String,
     ) {
-        self.controller.replace_gate(Box::new(gate));
+        self.ctl().replace_gate(Box::new(gate));
         self.now = None;
         self.live = library;
         self.movies = None;
@@ -365,7 +404,14 @@ impl App {
     /// the stream failed, so the stream slot is released for other
     /// windows/devices.
     pub fn tick(&mut self) {
-        if let Some(tick) = self.controller.tick() {
+        // Locked while a start is in flight: nothing to poll yet.
+        let Ok(mut controller) = self.controller.try_lock() else {
+            return;
+        };
+        let tick = controller.tick();
+        let progress = controller.progress();
+        drop(controller);
+        if let Some(tick) = tick {
             let name = self.now.take().map(|c| c.name).unwrap_or_default();
             match tick {
                 Tick::Closed => self.status = "Player closed".into(),
@@ -385,7 +431,6 @@ impl App {
         } else if let Some(channel) = &self.now {
             // Step, progress and elapsed time until the first frame (mpv has
             // no window before), then "Playing" once.
-            let progress = self.controller.progress();
             let stage = progress.as_ref().map(|p| p.stage);
             let opening = stage.is_some_and(|s| s != LoadStage::Playing);
             if opening || stage != self.shown_stage {
@@ -494,7 +539,8 @@ impl App {
     /// Ask the provider whether another device pushed the account over its
     /// limit while we play, and warn if so.
     fn watch(&mut self) {
-        if let Some(message) = self.controller.watch() {
+        let warning = self.ctl().watch();
+        if let Some(message) = warning {
             self.status = "⚠ Account over its stream limit".into();
             if self.mode == Mode::Normal {
                 self.mode = Mode::Alert {
@@ -521,6 +567,57 @@ impl App {
                 }
             }
             Mode::Alert { .. } => self.handle_alert_key(key),
+        }
+    }
+
+    /// Wheel scrolls a list; a click selects a row, and clicking the row that
+    /// is already selected in the channels list plays it (like Enter).
+    pub fn handle_mouse(&mut self, mouse: MouseEvent) {
+        if self.mode != Mode::Normal {
+            return;
+        }
+        let pos = Position::new(mouse.column, mouse.row);
+        let (focus, area) = if self.groups_area.contains(pos) {
+            (Focus::Groups, self.groups_area)
+        } else if self.channels_area.contains(pos) {
+            (Focus::Channels, self.channels_area)
+        } else {
+            return;
+        };
+        let state = match focus {
+            Focus::Groups => &self.groups_state,
+            Focus::Channels => &self.channels_state,
+        };
+        let current = state.selected().unwrap_or(0);
+        let delta = match mouse.kind {
+            MouseEventKind::ScrollDown => 1,
+            MouseEventKind::ScrollUp => -1,
+            MouseEventKind::Down(MouseButton::Left) => {
+                // Row 0 and the last row are the border.
+                let inner = mouse.row - area.y;
+                if inner == 0 || inner + 1 >= area.height {
+                    return;
+                }
+                let row = inner as usize - 1 + state.offset();
+                let len = match focus {
+                    Focus::Groups => self.group_names.len(),
+                    Focus::Channels => self.visible.len(),
+                };
+                if row >= len {
+                    return;
+                }
+                row as isize - current as isize
+            }
+            _ => return,
+        };
+        let replay = delta == 0
+            && focus == self.focus
+            && focus == Focus::Channels
+            && matches!(mouse.kind, MouseEventKind::Down(_));
+        self.focus = focus;
+        self.move_by(delta);
+        if replay {
+            self.open_selected();
         }
     }
 
@@ -571,7 +668,8 @@ impl App {
                 Focus::Channels => self.open_selected(),
             },
             KeyCode::Char(' ') => {
-                self.status = match self.controller.toggle_pause() {
+                let paused = self.ctl().toggle_pause();
+                self.status = match paused {
                     Ok(()) => "Toggled pause".into(),
                     Err(e) => format!("Error: {e}"),
                 }
@@ -657,11 +755,10 @@ impl App {
         };
         match (pending, key.code) {
             (Some(channel), KeyCode::Char('y' | 'Y')) => {
-                let outcome = self.controller.confirm(SLOT, &channel.url);
-                self.show_outcome(channel, outcome);
+                self.begin_start(channel, true);
             }
             (Some(_), _) => {
-                self.controller.cancel();
+                self.ctl().cancel();
                 self.status = "Cancelled: nothing was opened".into();
             }
             (None, _) => {}
@@ -804,14 +901,54 @@ impl App {
     /// Play a channel. The shared [`Controller`] decides whether the stream
     /// limit needs checking (only when nothing is playing).
     fn play(&mut self, channel: Channel) {
-        let outcome = self.controller.request(SLOT, &channel.url);
+        self.begin_start(channel, false);
+    }
+
+    fn ctl(&self) -> MutexGuard<'_, Ctl> {
+        self.controller.lock().unwrap()
+    }
+
+    /// Show the loading overlay; the event loop runs the start next turn.
+    fn begin_start(&mut self, channel: Channel, confirm: bool) {
+        self.status = format!("Opening {}…", channel.name);
+        self.mode = Mode::Loading {
+            title: "Starting stream",
+            name: channel.name.clone(),
+            started: Instant::now(),
+        };
+        self.start = Some(StartJob {
+            channel,
+            confirm,
+            controller: self.controller.clone(),
+        });
+    }
+
+    pub fn take_start_job(&mut self) -> Option<StartJob> {
+        self.start.take()
+    }
+
+    /// Run a queued start inline, as the event loop would.
+    #[cfg(test)]
+    pub fn settle(&mut self) {
+        if let Some(job) = self.take_start_job() {
+            self.finish_start(job.run());
+        }
+    }
+
+    pub fn start_failed(&mut self, message: &str) {
+        self.mode = Mode::Normal;
+        self.status = format!("Could not start the stream: {message}");
+    }
+
+    pub fn finish_start(&mut self, (channel, outcome): (Channel, Request)) {
+        self.mode = Mode::Normal;
         self.show_outcome(channel, outcome);
     }
 
     fn show_outcome(&mut self, channel: Channel, outcome: Request) {
         match outcome {
             Request::Started => {
-                let progress = self.controller.progress();
+                let progress = self.ctl().progress();
                 self.shown_stage = progress.as_ref().map(|p| p.stage);
                 self.status = status_line(&channel.name, progress.as_ref());
                 self.now = Some(channel);
@@ -836,7 +973,7 @@ impl App {
     }
 
     fn stop(&mut self) {
-        self.controller.stop();
+        self.ctl().stop();
         self.now = None;
         self.status = "Stopped".into();
     }
@@ -845,41 +982,40 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::cell::RefCell;
-    use std::rc::Rc;
+    use std::sync::{Arc, Mutex};
     use tuner_app::Begin;
 
-    type Log = Rc<RefCell<Vec<String>>>;
+    type Log = Arc<Mutex<Vec<String>>>;
 
     #[derive(Clone, Default)]
     struct FakePlayer {
         log: Log,
-        closed: Rc<RefCell<bool>>,
-        end: Rc<RefCell<Option<tuner_mpv::StreamEnd>>>,
-        progress: Rc<RefCell<Option<LoadProgress>>>,
+        closed: Arc<Mutex<bool>>,
+        end: Arc<Mutex<Option<tuner_mpv::StreamEnd>>>,
+        progress: Arc<Mutex<Option<LoadProgress>>>,
     }
 
     impl Playback for FakePlayer {
         fn play(&mut self, url: &str) -> tuner_mpv::Result<()> {
-            self.log.borrow_mut().push(format!("play {url}"));
-            *self.closed.borrow_mut() = false;
+            self.log.lock().unwrap().push(format!("play {url}"));
+            *self.closed.lock().unwrap() = false;
             Ok(())
         }
         fn shutdown(&mut self) {
-            self.log.borrow_mut().push("shutdown".into());
+            self.log.lock().unwrap().push("shutdown".into());
         }
         fn toggle_pause(&mut self) -> tuner_mpv::Result<()> {
-            self.log.borrow_mut().push("pause".into());
+            self.log.lock().unwrap().push("pause".into());
             Ok(())
         }
         fn is_running(&mut self) -> bool {
-            !*self.closed.borrow()
+            !*self.closed.lock().unwrap()
         }
         fn poll_end(&mut self) -> Option<tuner_mpv::StreamEnd> {
-            self.end.borrow_mut().take()
+            self.end.lock().unwrap().take()
         }
         fn progress(&self) -> Option<LoadProgress> {
-            self.progress.borrow().clone()
+            self.progress.lock().unwrap().clone()
         }
     }
 
@@ -892,11 +1028,11 @@ mod tests {
 
     impl StreamGate for FakeGate {
         fn begin(&mut self) -> Begin {
-            self.log.borrow_mut().push("begin".into());
+            self.log.lock().unwrap().push("begin".into());
             self.verdict.clone()
         }
         fn end(&mut self) {
-            self.log.borrow_mut().push("end".into());
+            self.log.lock().unwrap().push("end".into());
         }
         fn watch(&mut self) -> Option<String> {
             self.warning.clone()
@@ -928,6 +1064,62 @@ mod tests {
 
     fn press(app: &mut App, code: KeyCode) {
         app.handle_key(KeyEvent::from(code));
+        app.settle();
+    }
+
+    fn mouse(app: &mut App, kind: MouseEventKind, column: u16, row: u16) {
+        app.handle_mouse(MouseEvent {
+            kind,
+            column,
+            row,
+            modifiers: KeyModifiers::NONE,
+        });
+    }
+
+    #[test]
+    fn mouse_scrolls_selects_and_plays() {
+        let (mut app, player) = app();
+        app.groups_area = Rect::new(0, 0, 10, 10);
+        app.channels_area = Rect::new(10, 0, 30, 10);
+        let left = MouseEventKind::Down(MouseButton::Left);
+
+        mouse(&mut app, MouseEventKind::ScrollDown, 12, 3);
+        assert_eq!(app.channels_state.selected(), Some(1));
+        // Row 3 inside the border is the third channel; first click selects only.
+        mouse(&mut app, left, 12, 3);
+        assert_eq!(app.channels_state.selected(), Some(2));
+        assert!(log(&player).is_empty());
+        mouse(&mut app, left, 12, 3);
+        app.settle();
+        assert_eq!(
+            log(&player).last().unwrap(),
+            "play http://cnn",
+            "second click plays"
+        );
+        // Border and blank space below the list do nothing.
+        mouse(&mut app, left, 12, 0);
+        mouse(&mut app, left, 12, 8);
+        assert_eq!(app.channels_state.selected(), Some(2));
+        // A group click filters the channel list.
+        mouse(&mut app, left, 2, 3);
+        assert_eq!(app.focus, Focus::Groups);
+        assert_eq!(names(&app).len(), 1);
+    }
+
+    #[test]
+    fn starting_shows_overlay_and_ignores_input_until_done() {
+        let (mut app, player) = app();
+        app.handle_key(KeyEvent::from(KeyCode::Enter));
+        assert!(matches!(&app.mode, Mode::Loading { name, .. } if name == "BBC News"));
+        assert!(
+            log(&player).is_empty(),
+            "nothing blocks before the job runs"
+        );
+        app.handle_key(KeyEvent::from(KeyCode::Char('j')));
+        assert_eq!(app.channels_state.selected(), Some(0), "keys are ignored");
+        app.settle();
+        assert_eq!(app.mode, Mode::Normal);
+        assert_eq!(log(&player).last().unwrap(), "play http://bbc");
     }
 
     fn names(app: &App) -> Vec<&str> {
@@ -935,7 +1127,7 @@ mod tests {
     }
 
     fn log(player: &FakePlayer) -> Vec<String> {
-        player.log.borrow().clone()
+        player.log.lock().unwrap().clone()
     }
 
     #[test]
@@ -975,7 +1167,7 @@ mod tests {
     fn closing_mpv_releases_the_slot() {
         let (mut app, player) = app();
         press(&mut app, KeyCode::Enter);
-        *player.closed.borrow_mut() = true;
+        *player.closed.lock().unwrap() = true;
         app.tick();
         assert!(app.now_playing().is_none());
         assert_eq!(log(&player).last().map(String::as_str), Some("end"));
@@ -987,7 +1179,7 @@ mod tests {
     fn unreachable_stream_closes_mpv_and_explains() {
         let (mut app, player) = app();
         press(&mut app, KeyCode::Enter);
-        *player.end.borrow_mut() = Some(tuner_mpv::StreamEnd::Failed("loading failed".into()));
+        *player.end.lock().unwrap() = Some(tuner_mpv::StreamEnd::Failed("loading failed".into()));
         app.tick();
         assert!(app.now_playing().is_none());
         assert_eq!(
@@ -1019,22 +1211,22 @@ mod tests {
                 problem: None,
             })
         };
-        *player.progress.borrow_mut() = at(LoadStage::Connecting, 0);
+        *player.progress.lock().unwrap() = at(LoadStage::Connecting, 0);
         press(&mut app, KeyCode::Enter);
         assert_eq!(app.status, "Connecting to BBC News… · step 1/2 · 0 s");
         // Refreshed every tick while opening, so the seconds count up.
-        *player.progress.borrow_mut() = at(LoadStage::Connecting, 3);
+        *player.progress.lock().unwrap() = at(LoadStage::Connecting, 3);
         app.tick();
         assert_eq!(app.status, "Connecting to BBC News… · step 1/2 · 3 s");
-        *player.progress.borrow_mut() = at(LoadStage::Buffering, 5);
+        *player.progress.lock().unwrap() = at(LoadStage::Buffering, 5);
         app.tick();
         assert_eq!(app.status, "Buffering BBC News… · step 2/2 · 5 s");
-        *player.progress.borrow_mut() = at(LoadStage::Playing, 6);
+        *player.progress.lock().unwrap() = at(LoadStage::Playing, 6);
         app.tick();
         assert_eq!(app.status, "Playing BBC News");
         // Once playing, other messages stay.
         app.status = "something else".into();
-        *player.progress.borrow_mut() = at(LoadStage::Playing, 9);
+        *player.progress.lock().unwrap() = at(LoadStage::Playing, 9);
         app.tick();
         assert_eq!(app.status, "something else");
     }
@@ -1043,7 +1235,7 @@ mod tests {
     fn ended_stream_only_updates_the_status() {
         let (mut app, player) = app();
         press(&mut app, KeyCode::Enter);
-        *player.end.borrow_mut() = Some(tuner_mpv::StreamEnd::Ended);
+        *player.end.lock().unwrap() = Some(tuner_mpv::StreamEnd::Ended);
         app.tick();
         assert!(app.now_playing().is_none());
         assert_eq!(app.status, "BBC News ended");
@@ -1447,7 +1639,7 @@ mod tests {
         app.tick();
         assert!(app.status.starts_with("Loading"));
         assert!(matches!(app.mode, Mode::Loading { .. }));
-        *player.closed.borrow_mut() = true;
+        *player.closed.lock().unwrap() = true;
         app.tick();
         assert!(app.now_playing().is_none());
         assert_eq!(log(&player).last().unwrap(), "end");
