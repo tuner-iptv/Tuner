@@ -16,7 +16,7 @@ use tuner_app::{Config, Resolved, Source, StreamGuard};
 use tuner_core::Library;
 use tuner_mpv::{MpvOptions, Player};
 
-use crate::app::{App, CatalogDone, CatalogJob};
+use crate::app::{App, CatalogDone, CatalogJob, StartJob};
 
 /// How often to check whether the user closed the mpv window.
 const TICK: Duration = Duration::from_millis(500);
@@ -190,6 +190,19 @@ fn spawn_catalog(job: CatalogJob) -> Result<Receiver<CatalogDone>> {
     Ok(result)
 }
 
+/// Run a play request off the UI thread: the provider check and spawning mpv
+/// block, and the loading overlay should keep animating meanwhile.
+fn spawn_start(job: StartJob) -> Result<Receiver<(tuner_core::Channel, tuner_app::Request)>> {
+    let (sender, result) = mpsc::channel();
+    std::thread::Builder::new()
+        .name("stream-starter".into())
+        .spawn(move || {
+            let _ = sender.send(job.run());
+        })
+        .context("could not start the stream starter")?;
+    Ok(result)
+}
+
 fn run(
     terminal: &mut ratatui::DefaultTerminal,
     app: &mut App,
@@ -199,12 +212,26 @@ fn run(
 ) -> Result<()> {
     let mut loading: Option<AccountLoad> = None;
     let mut catalog_load: Option<Receiver<CatalogDone>> = None;
+    let mut start_load: Option<Receiver<(tuner_core::Channel, tuner_app::Request)>> = None;
     while !app.should_quit() && !terminate.load(Ordering::Relaxed) {
         if let Some(load) = &loading
             && let Some(result) = load.poll()
         {
             finish_account_switch(app, load.name.clone(), result);
             loading = None;
+        }
+        if let Some(receiver) = &start_load {
+            match receiver.try_recv() {
+                Ok(done) => {
+                    app.finish_start(done);
+                    start_load = None;
+                }
+                Err(TryRecvError::Empty) => {}
+                Err(TryRecvError::Disconnected) => {
+                    app.start_failed("stream starter stopped unexpectedly");
+                    start_load = None;
+                }
+            }
         }
         if let Some(receiver) = &catalog_load {
             match receiver.try_recv() {
@@ -239,7 +266,15 @@ fn run(
                 Err(e) => app.catalog_failed(&format!("{e:#}")),
             }
         }
-        let interval = if loading.is_some() || catalog_load.is_some() {
+        if start_load.is_none()
+            && let Some(job) = app.take_start_job()
+        {
+            match spawn_start(job) {
+                Ok(receiver) => start_load = Some(receiver),
+                Err(e) => app.start_failed(&format!("{e:#}")),
+            }
+        }
+        let interval = if loading.is_some() || catalog_load.is_some() || start_load.is_some() {
             LOADING_TICK
         } else if app.animating() {
             ANIMATION_TICK
@@ -255,6 +290,10 @@ fn run(
         }
         app.tick();
     }
+    // Quit during a start: let mpv spawn, so dropping the app shuts it down.
+    if let Some(receiver) = start_load {
+        let _ = receiver.recv();
+    }
     Ok(())
 }
 
@@ -262,20 +301,19 @@ fn run(
 mod tests {
     use super::*;
     use ratatui::crossterm::event::{KeyCode, KeyEvent};
-    use std::cell::RefCell;
-    use std::rc::Rc;
+    use std::sync::{Arc, Mutex};
     use tuner_app::{Begin, Playback, StreamGate};
 
     #[derive(Clone, Default)]
-    struct FakePlayer(Rc<RefCell<Vec<String>>>);
+    struct FakePlayer(Arc<Mutex<Vec<String>>>);
 
     impl Playback for FakePlayer {
         fn play(&mut self, _: &str) -> tuner_mpv::Result<()> {
-            self.0.borrow_mut().push("play".into());
+            self.0.lock().unwrap().push("play".into());
             Ok(())
         }
         fn shutdown(&mut self) {
-            self.0.borrow_mut().push("shutdown".into());
+            self.0.lock().unwrap().push("shutdown".into());
         }
         fn toggle_pause(&mut self) -> tuner_mpv::Result<()> {
             Ok(())
@@ -332,6 +370,7 @@ mod tests {
         let mut app = App::new(library, player.clone(), FakeGate);
         app.set_accounts(vec!["Original".into()], Some("Original".into()));
         app.handle_key(KeyEvent::from(KeyCode::Enter));
+        app.settle();
         let mut config = config();
         config.sources[0].kind = tuner_app::config::SourceKind::M3u {
             location: format!("{}/Cargo.toml/missing.m3u", env!("CARGO_MANIFEST_DIR")),
@@ -347,14 +386,14 @@ mod tests {
         assert_eq!(app.now_playing().unwrap().name, "Original");
         assert_eq!(app.visible_len(), 1);
         assert!(app.status.starts_with("Could not switch account:"));
-        assert_eq!(*player.0.borrow(), ["play"]);
+        assert_eq!(*player.0.lock().unwrap(), ["play"]);
 
         // The same event-loop path commits a successful load and stops mpv.
         complete_load(&mut app, &self::config(), "Sample");
         assert_eq!(app.current_account.as_deref(), Some("Sample"));
         assert!(app.now_playing().is_none());
         assert!(app.visible_len() > 1);
-        assert_eq!(*player.0.borrow(), ["play", "shutdown"]);
+        assert_eq!(*player.0.lock().unwrap(), ["play", "shutdown"]);
     }
 
     fn render(app: &mut App, width: u16, height: u16) -> String {
