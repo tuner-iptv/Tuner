@@ -30,6 +30,8 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         (right, None)
     };
 
+    app.groups_area = groups;
+    app.channels_area = channels;
     let highlight = Style::new().add_modifier(Modifier::REVERSED);
 
     let groups_title = match (app.section(), app.open_series()) {

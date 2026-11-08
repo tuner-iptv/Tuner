@@ -7,6 +7,15 @@ three in sync, and the browser demo too (`site/assets/demo.js`, see
 
 ## Normal mode
 
+Starting playback (the provider check and spawning mpv block) runs on a worker
+thread behind a "Starting stream" spinner overlay; like other loaders it
+ignores keys and the mouse except quit until mpv has the stream.
+
+Mouse (normal mode, `App::handle_mouse`): wheel scrolls the list under the
+pointer; left click selects a row; clicking the already-selected channel plays
+it (like `Enter`). Mouse capture disables native text selection (use
+Shift-drag).
+
 | Key                    | Action                                          |
 | ---------------------- | ----------------------------------------------- |
 | `1` / `2` / `3`        | Show Live / Movies / Series (Movies and Series need an Xtream source; loaded on first use) |
