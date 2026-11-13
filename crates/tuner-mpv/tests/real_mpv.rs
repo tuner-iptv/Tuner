@@ -20,6 +20,9 @@ fn drives_a_real_mpv() {
     mpv.load("av://lavfi:testsrc").expect("loadfile");
     mpv.toggle_pause().expect("pause");
     assert!(mpv.is_paused().expect("pause state"));
+    let muted = mpv.is_muted().expect("mute state");
+    mpv.toggle_mute().expect("mute");
+    assert_eq!(mpv.is_muted().expect("mute state"), !muted);
     mpv.stop().expect("stop");
     drop(mpv);
 }

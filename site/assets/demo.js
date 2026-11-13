@@ -1268,7 +1268,7 @@
     const lPane = h("section", { class: "t-box t-list" }, lTitle, listBox);
     const dPane = h("section", { class: "t-box t-detbox" }, dTitle, detBox);
     const stat = h("div", { class: "t-status" });
-    const hints = h("div", { class: "t-hints", text: "1-3 section · j/k move · h/l pane · / search · a accounts · i info · u url · enter play · space pause · s stop · q quit" });
+    const hints = h("div", { class: "t-hints", text: "1-3 section · j/k move · h/l pane · / search · a accounts · i info · u url · enter play · space pause · m mute · s stop · q quit" });
     const popup = h("div", { class: "t-pop-wrap", hidden: true });
     const root = h("div", { class: "tui", id: "tui", tabindex: "0", "aria-label": "Tuner terminal UI (mock). Click, then use the keyboard.", hidden: true }, h("div", { class: "t-main" }, gPane, h("div", { class: "t-right" }, lPane, dPane)), stat, hints, popup);
 
@@ -1476,6 +1476,10 @@
           return render(), true;
         case " ":
           return act.pause(), true;
+        case "m":
+          if (!s.playing) return true;
+          say(s.muted ? "Unmuted" : "Muted");
+          return act.toggleMute(), true;
         case "s":
           return act.stop(), true;
         case "q":
@@ -1510,7 +1514,7 @@
 
   const KEYS = [
     ["j", "↓"], ["k", "↑"], ["h", "←"], ["l", "→"], ["/", "search"], ["Enter", "↵ play"], ["Escape", "esc"],
-    [" ", "space"], ["s", "s stop"], ["i", "i info"], ["u", "u url"], ["a", "a accounts"], ["1", "1 live"], ["2", "2 movies"], ["3", "3 series"], ["q", "q quit"],
+    [" ", "space"], ["m", "m mute"], ["s", "s stop"], ["i", "i info"], ["u", "u url"], ["a", "a accounts"], ["1", "1 live"], ["2", "2 movies"], ["3", "3 series"], ["q", "q quit"],
   ];
   KEYS.forEach(([k, label]) =>
     keysBar.append(

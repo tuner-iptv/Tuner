@@ -267,6 +267,16 @@ impl Mpv {
         let value = self.command(&[json!("get_property"), json!("pause")])?;
         Ok(value.as_bool().unwrap_or(false))
     }
+
+    pub fn toggle_mute(&mut self) -> Result<()> {
+        self.command(&[json!("cycle"), json!("mute")]).map(drop)
+    }
+
+    /// Whether audio is muted (also if the user muted inside mpv).
+    pub fn is_muted(&mut self) -> Result<bool> {
+        let value = self.command(&[json!("get_property"), json!("mute")])?;
+        Ok(value.as_bool().unwrap_or(false))
+    }
 }
 
 impl Drop for Mpv {
@@ -327,6 +337,15 @@ impl Player {
         mpv.is_paused().ok()
     }
 
+    /// Whether mpv is muted; `None` when mpv is not running or not answering.
+    pub fn is_muted(&mut self) -> Option<bool> {
+        let mpv = self.mpv.as_mut()?;
+        if !mpv.is_running() {
+            return None;
+        }
+        mpv.is_muted().ok()
+    }
+
     /// Whether the stream from the last `play` failed, stalled, or ended.
     /// Non-blocking; call about once a second. `None` when mpv is not
     /// running.
@@ -362,6 +381,11 @@ impl Player {
     /// Toggle pause. A no-op when mpv is not running.
     pub fn toggle_pause(&mut self) -> Result<()> {
         self.with_existing(Mpv::toggle_pause)
+    }
+
+    /// Toggle mute. A no-op when mpv is not running.
+    pub fn toggle_mute(&mut self) -> Result<()> {
+        self.with_existing(Mpv::toggle_mute)
     }
 
     fn running(&mut self) -> Result<&mut Mpv> {
@@ -537,6 +561,19 @@ mod tests {
         );
         drop(mpv);
         fake.join().unwrap();
+        let _ = std::fs::remove_file(socket);
+    }
+
+    #[test]
+    fn mutes_through_mpv_and_reads_the_state_back() {
+        let (socket, fake) = playing(json!({"mute": true}));
+        let mut mpv = Mpv::connect(socket.clone()).unwrap();
+        assert!(mpv.is_muted().unwrap());
+        mpv.toggle_mute().unwrap();
+        drop(mpv);
+        let seen = fake.join().unwrap();
+        assert!(seen.contains(&json!(["get_property", "mute"])));
+        assert!(seen.contains(&json!(["cycle", "mute"])));
         let _ = std::fs::remove_file(socket);
     }
 }

@@ -35,6 +35,7 @@ Shift-drag).
 | `u`                    | Show / hide the full stream URL in the details  |
 | `a`                    | Open the account switcher                       |
 | `Space`                | Toggle pause in mpv                             |
+| `m`                    | Toggle mute in mpv (keeps playing; the stream slot stays held) |
 | `s`                    | Stop: quit mpv (closes its window), free slot   |
 | `x`                    | Dismiss the update notice until the next release |
 | `q` / `Ctrl-C`         | Quit (also closes mpv)                          |
