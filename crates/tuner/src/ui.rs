@@ -9,7 +9,7 @@ use ratatui::widgets::{Block, BorderType, Clear, List, ListItem, Paragraph, Wrap
 
 use crate::app::{App, Focus, Mode, Section, Selected};
 
-const HINTS: &str = "1-3 section · j/k move · h/l pane · / search · a accounts · i info · u url · enter play · space pause · s stop · q quit";
+const HINTS: &str = "1-3 section · j/k move · h/l pane · / search · a accounts · i info · u url · enter play · space pause · m mute · s stop · q quit";
 const DETAILS_HEIGHT: u16 = 10;
 const SPINNER: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 

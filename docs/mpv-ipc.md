@@ -38,9 +38,9 @@ mpv --idle=yes --force-window=no \
 
 `Player` wraps an `Option<Mpv>`: it spawns on first `play`, and if the user
 closed the mpv window (process gone or socket broken) it respawns and retries
-once. `toggle_pause` is a no-op when mpv is not running. `shutdown` quits
-mpv; the front-ends' **Stop** uses it, so stopping closes the mpv window
-instead of leaving an idle player behind.
+once. `toggle_pause` and `toggle_mute` are no-ops when mpv is not running.
+`shutdown` quits mpv; the front-ends' **Stop** uses it, so stopping closes the
+mpv window instead of leaving an idle player behind.
 
 ## Embedded mpv
 
@@ -84,6 +84,8 @@ Commands in use:
 | Play channel | `["loadfile", url, "replace"]`    |
 | Pause toggle | `["cycle", "pause"]`              |
 | Pause state  | `["get_property", "pause"]`       |
+| Mute toggle  | `["cycle", "mute"]`               |
+| Mute state   | `["get_property", "mute"]`        |
 | Cache fill   | `["observe_property", 1, "demuxer-cache-state"]` (at spawn) |
 | Error detail | `["request_log_messages", "warn"]` (at spawn) |
 | Window       | `["set_property", "force-window", bool]` |

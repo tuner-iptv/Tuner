@@ -674,6 +674,15 @@ impl App {
                     Err(e) => format!("Error: {e}"),
                 }
             }
+            KeyCode::Char('m') => {
+                let muted = self.ctl().toggle_mute();
+                self.status = match muted {
+                    Ok(Some(true)) => "Muted".into(),
+                    Ok(Some(false)) => "Unmuted".into(),
+                    Ok(None) => "Toggled mute".into(),
+                    Err(e) => format!("Error: {e}"),
+                }
+            }
             KeyCode::Char('s') => self.stop(),
             _ => {}
         }
@@ -993,6 +1002,7 @@ mod tests {
         closed: Arc<Mutex<bool>>,
         end: Arc<Mutex<Option<tuner_mpv::StreamEnd>>>,
         progress: Arc<Mutex<Option<LoadProgress>>>,
+        muted: Arc<Mutex<bool>>,
     }
 
     impl Playback for FakePlayer {
@@ -1007,6 +1017,15 @@ mod tests {
         fn toggle_pause(&mut self) -> tuner_mpv::Result<()> {
             self.log.lock().unwrap().push("pause".into());
             Ok(())
+        }
+        fn toggle_mute(&mut self) -> tuner_mpv::Result<()> {
+            self.log.lock().unwrap().push("mute".into());
+            let mut muted = self.muted.lock().unwrap();
+            *muted = !*muted;
+            Ok(())
+        }
+        fn is_muted(&mut self) -> Option<bool> {
+            Some(*self.muted.lock().unwrap())
         }
         fn is_running(&mut self) -> bool {
             !*self.closed.lock().unwrap()
@@ -1161,6 +1180,18 @@ mod tests {
             ["begin", "play http://bbc", "shutdown", "end"]
         );
         assert!(app.now_playing().is_none());
+    }
+
+    #[test]
+    fn m_mutes_without_pausing_or_releasing_the_slot() {
+        let (mut app, player) = app();
+        press(&mut app, KeyCode::Enter);
+        press(&mut app, KeyCode::Char('m'));
+        assert_eq!(app.status, "Muted");
+        press(&mut app, KeyCode::Char('m'));
+        assert_eq!(app.status, "Unmuted");
+        assert_eq!(log(&player), ["begin", "play http://bbc", "mute", "mute"]);
+        assert!(app.now_playing().is_some());
     }
 
     #[test]

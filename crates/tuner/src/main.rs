@@ -318,6 +318,9 @@ mod tests {
         fn toggle_pause(&mut self) -> tuner_mpv::Result<()> {
             Ok(())
         }
+        fn toggle_mute(&mut self) -> tuner_mpv::Result<()> {
+            Ok(())
+        }
         fn is_running(&mut self) -> bool {
             true
         }

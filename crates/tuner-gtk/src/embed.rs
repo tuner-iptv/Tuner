@@ -347,6 +347,12 @@ impl Playback for EmbeddedPlayer {
         }
         self.mpv.as_mut().map_or(Ok(()), Mpv::toggle_pause)
     }
+    fn toggle_mute(&mut self) -> tuner_mpv::Result<()> {
+        if self.detached() {
+            return self.external.toggle_mute();
+        }
+        self.mpv.as_mut().map_or(Ok(()), Mpv::toggle_mute)
+    }
     /// The embedded view has no window to close; closing mpv's own window
     /// ends the detached stream and brings the next one back in.
     fn is_running(&mut self) -> bool {
@@ -366,6 +372,12 @@ impl Playback for EmbeddedPlayer {
             return self.external.is_paused();
         }
         self.mpv.as_mut()?.is_paused().ok()
+    }
+    fn is_muted(&mut self) -> Option<bool> {
+        if self.detached() {
+            return self.external.is_muted();
+        }
+        self.mpv.as_mut()?.is_muted().ok()
     }
     fn poll_end(&mut self) -> Option<StreamEnd> {
         if self.detached() {

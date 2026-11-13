@@ -14,12 +14,17 @@ use crate::guard::{Begin, StreamGate};
 pub trait Playback {
     fn play(&mut self, url: &str) -> tuner_mpv::Result<()>;
     fn toggle_pause(&mut self) -> tuner_mpv::Result<()>;
+    fn toggle_mute(&mut self) -> tuner_mpv::Result<()>;
     /// False once the user has closed the player window.
     fn is_running(&mut self) -> bool;
     /// Close the player entirely (e.g. the front-end is exiting).
     fn shutdown(&mut self) {}
     /// Whether playback is paused, if the player can tell.
     fn is_paused(&mut self) -> Option<bool> {
+        None
+    }
+    /// Whether audio is muted, if the player can tell.
+    fn is_muted(&mut self) -> Option<bool> {
         None
     }
     /// Non-blocking: whether the stream from the last `play` failed, never
@@ -41,6 +46,9 @@ impl Playback for tuner_mpv::Player {
     fn toggle_pause(&mut self) -> tuner_mpv::Result<()> {
         tuner_mpv::Player::toggle_pause(self)
     }
+    fn toggle_mute(&mut self) -> tuner_mpv::Result<()> {
+        tuner_mpv::Player::toggle_mute(self)
+    }
     fn is_running(&mut self) -> bool {
         tuner_mpv::Player::is_running(self)
     }
@@ -49,6 +57,9 @@ impl Playback for tuner_mpv::Player {
     }
     fn is_paused(&mut self) -> Option<bool> {
         tuner_mpv::Player::is_paused(self)
+    }
+    fn is_muted(&mut self) -> Option<bool> {
+        tuner_mpv::Player::is_muted(self)
     }
     fn poll_end(&mut self) -> Option<tuner_mpv::StreamEnd> {
         tuner_mpv::Player::poll(self)
@@ -65,6 +76,9 @@ impl<T: Playback + ?Sized> Playback for Box<T> {
     fn toggle_pause(&mut self) -> tuner_mpv::Result<()> {
         (**self).toggle_pause()
     }
+    fn toggle_mute(&mut self) -> tuner_mpv::Result<()> {
+        (**self).toggle_mute()
+    }
     fn is_running(&mut self) -> bool {
         (**self).is_running()
     }
@@ -73,6 +87,9 @@ impl<T: Playback + ?Sized> Playback for Box<T> {
     }
     fn is_paused(&mut self) -> Option<bool> {
         (**self).is_paused()
+    }
+    fn is_muted(&mut self) -> Option<bool> {
+        (**self).is_muted()
     }
     fn poll_end(&mut self) -> Option<tuner_mpv::StreamEnd> {
         (**self).poll_end()
@@ -195,6 +212,17 @@ impl<P: Playback, G: StreamGate> Controller<P, G> {
 
     pub fn toggle_pause(&mut self) -> Result<(), String> {
         self.player.toggle_pause().map_err(|e| e.to_string())
+    }
+
+    /// Toggle mute. Returns the new state when the player can tell (`None`
+    /// when nothing plays or mpv is not answering), so the front-end can say
+    /// *Muted* / *Unmuted*. Muting never touches the stream slot.
+    pub fn toggle_mute(&mut self) -> Result<Option<bool>, String> {
+        self.player.toggle_mute().map_err(|e| e.to_string())?;
+        if self.playing.is_none() {
+            return Ok(None);
+        }
+        Ok(self.player.is_muted())
     }
 
     /// Close the player and release the stream slot. Call when the
@@ -327,6 +355,7 @@ mod tests {
         running: Rc<RefCell<bool>>,
         fail: bool,
         end: Rc<RefCell<Option<tuner_mpv::StreamEnd>>>,
+        muted: Rc<RefCell<bool>>,
     }
 
     impl Playback for FakePlayer {
@@ -344,6 +373,15 @@ mod tests {
         }
         fn toggle_pause(&mut self) -> tuner_mpv::Result<()> {
             Ok(())
+        }
+        fn toggle_mute(&mut self) -> tuner_mpv::Result<()> {
+            self.log.borrow_mut().push("mute".into());
+            let mut muted = self.muted.borrow_mut();
+            *muted = !*muted;
+            Ok(())
+        }
+        fn is_muted(&mut self) -> Option<bool> {
+            Some(*self.muted.borrow())
         }
         fn is_running(&mut self) -> bool {
             *self.running.borrow()
@@ -379,6 +417,7 @@ mod tests {
             running: running.clone(),
             fail,
             end: Rc::default(),
+            muted: Rc::default(),
         };
         let gate = FakeGate {
             verdict,
@@ -463,6 +502,17 @@ mod tests {
     }
 
     #[test]
+    fn mute_reports_the_new_state_and_keeps_the_slot() {
+        let (mut c, log, _) = controller(Begin::Go, false);
+        assert_eq!(c.toggle_mute(), Ok(None));
+        c.request(0, "a");
+        assert_eq!(c.toggle_mute(), Ok(Some(false)));
+        assert_eq!(c.toggle_mute(), Ok(Some(true)));
+        assert_eq!(c.playing(), Some(0));
+        assert_eq!(*log.borrow(), ["mute", "begin", "play a", "mute", "mute"]);
+    }
+
+    #[test]
     fn watch_only_asks_while_playing() {
         let (mut c, log, _) = controller(Begin::Go, false);
         assert_eq!(c.watch(), None);
@@ -492,6 +542,7 @@ mod tests {
             running,
             fail: false,
             end: end.clone(),
+            muted: Rc::default(),
         };
         let gate = FakeGate {
             verdict: Begin::Go,
